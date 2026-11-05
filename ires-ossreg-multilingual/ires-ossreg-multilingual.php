@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.7
+ * Version: 0.4.8
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -28,6 +28,7 @@ final class IRES_OSSREG_Multilingual {
   add_filter('document_title_parts',[$this,'document_title']);
   add_action('wp_head',[$this,'hreflang']);
   add_shortcode('ires_ossreg_language_switcher',[$this,'switcher']);
+  add_action('wp_footer',[$this,'floating_switcher'],100);
   add_action('admin_menu',[$this,'admin_menu']);
   add_action('admin_post_ires_ossreg_ml_test',[$this,'test_api']);
   add_action('admin_post_ires_ossreg_ml_github_update',[$this,'github_update']);
@@ -105,13 +106,37 @@ final class IRES_OSSREG_Multilingual {
  function title($title,$id=0){if(!$this->enabled()||!$id||!is_singular()||get_queried_object_id()!=(int)$id)return $title;$t=$this->item($id);return $t?sanitize_text_field($t['title']):$title;}
  function document_title($parts){if($this->enabled()&&is_singular()){ $t=$this->item(get_queried_object_id());if($t)$parts['title']=$t['title'];}return $parts;}
  function hreflang(){if(!$this->opts()['public_enabled']||!is_singular())return;$url=get_permalink(get_queried_object_id());if(!$url)return;$it=str_replace(home_url('/en/'),home_url('/'),$url);$en=$this->path($it);echo '<link rel="alternate" hreflang="it" href="'.esc_url($it).'" />' . "\n";echo '<link rel="alternate" hreflang="en" href="'.esc_url($en).'" />' . "\n";}
- function switcher(){if(!$this->opts()['public_enabled']&&!current_user_can('manage_options'))return '';if(!is_singular())return '';$url=get_permalink(get_queried_object_id());$it=$this->enabled()?preg_replace('~/en/~','/',$url,1):$url;$en=$this->path($it);return '<nav aria-label="Language"><a href="'.esc_url($it).'" lang="it">IT</a> | <a href="'.esc_url($en).'" lang="en">EN</a></nav>';}
+ function language_urls(){
+  $uri=(string)($_SERVER['REQUEST_URI']??'/');
+  $path=(string)wp_parse_url($uri,PHP_URL_PATH);
+  $base=rtrim((string)wp_parse_url(home_url('/'),PHP_URL_PATH),'/');
+  $relative=ltrim(substr($path,strlen($base)),'/');
+  if($relative==='en'||strpos($relative,'en/')===0)$relative=ltrim(substr($relative,2),'/');
+  $it=home_url('/'.$relative);
+  $en=home_url('/en/'.$relative);
+  return [$it,$en];
+ }
+ function switcher(){
+  if(!$this->opts()['public_enabled']&&!current_user_can('manage_options'))return '';
+  list($it,$en)=$this->language_urls();
+  $english=$this->enabled();
+  return '<nav class="ires-ossreg-language" aria-label="Choose language"><a class="ires-lang-it'.(!$english?' is-current':'').'" href="'.esc_url($it).'" lang="it" hreflang="it" aria-label="Italiano" '.(!$english?'aria-current="page"':'').'>🇮🇹 <span>IT</span></a><a class="ires-lang-en'.($english?' is-current':'').'" href="'.esc_url($en).'" lang="en" hreflang="en" aria-label="English" '.($english?'aria-current="page"':'').'>🇬🇧 <span>EN</span></a></nav>';
+ }
+ function floating_switcher(){
+  if(is_admin()||(!$this->opts()['public_enabled']&&!current_user_can('manage_options')))return;
+  echo '<style>.ires-ossreg-language{display:inline-flex;align-items:center;gap:3px;padding:5px;background:#fff;border:1px solid #dce3ea;border-radius:999px;box-shadow:0 4px 18px rgba(0,0,0,.14);font:600 12px/1.3 system-ui,sans-serif;z-index:99999}.ires-ossreg-language a{display:flex;align-items:center;gap:5px;padding:7px 9px;border-radius:999px;text-decoration:none!important;color:#24384b!important;white-space:nowrap}.ires-ossreg-language a.is-current{background:#e9f1fa;color:#143b63!important}.ires-ossreg-language a:focus-visible{outline:2px solid #1769aa;outline-offset:2px}.ires-ossreg-floating{position:fixed;top:14px;right:14px;z-index:99999}@media(max-width:600px){.ires-ossreg-floating{top:8px;right:8px}.ires-ossreg-language{padding:3px}.ires-ossreg-language a{padding:6px}}</style>';
+  echo '<div class="ires-ossreg-floating">'.$this->switcher().'</div>';
+  if(!$this->opts()['public_enabled'])return;
+  list($it,$en)=$this->language_urls();
+  echo '<script>(function(){try{var it='.wp_json_encode($it).',en='.wp_json_encode($en).';var pref=localStorage.getItem("ires_ossreg_language");var path=location.pathname;var enPath=new URL(en,location.href).pathname;var isEnglish=path===enPath;var isItalian=path===new URL(it,location.href).pathname;document.querySelectorAll(".ires-ossreg-language a").forEach(function(a){a.addEventListener("click",function(){localStorage.setItem("ires_ossreg_language",a.lang)})});if(!isItalian||isEnglish||location.search.indexOf("preview=")!==-1)return;var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"it"];var browserLang=String(langs[0]||"it").toLowerCase();if((pref==="en"||(!pref&&browserLang.slice(0,2)!=="it"))&&location.pathname!==enPath){location.replace(en+location.search+location.hash)}}catch(e){}})();</script>';
+ }
+
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.7</h1><p>Versione sperimentale: pagine e articoli standard. I contenuti Nimble, menu e librerie dinamiche non sono ancora tradotti. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.8</h1><p>Versione sperimentale: pagine e articoli standard. I contenuti Nimble, menu e librerie dinamiche non sono ancora tradotti. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.7</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.8</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   echo '<h2>Diagnostica</h2><p>PHP '.esc_html(PHP_VERSION).' | WordPress '.esc_html(get_bloginfo('version')).' | Gemini: '.(!empty($o['api_key'])?'chiave configurata':'chiave assente').' | Anteprima: '.(!$o['public_enabled']?'attiva':'disattivata').'</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_test">';wp_nonce_field('ires_ossreg_ml_test');submit_button('Verifica connessione Gemini','secondary','submit',false);echo '</form>';
