@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.1
+ * Version: 0.4.2
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -45,7 +45,7 @@ final class IRES_OSSREG_Multilingual {
  function hreflang(){if(!$this->opts()['public_enabled']||!is_singular())return;$url=get_permalink(get_queried_object_id());if(!$url)return;$it=str_replace(home_url('/en/'),home_url('/'),$url);$en=$this->path($it);echo '<link rel="alternate" hreflang="it" href="'.esc_url($it).'" />' . "\n";echo '<link rel="alternate" hreflang="en" href="'.esc_url($en).'" />' . "\n";}
  function switcher(){if(!$this->opts()['public_enabled']&&!current_user_can('manage_options'))return '';if(!is_singular())return '';$url=get_permalink(get_queried_object_id());$it=$this->enabled()?preg_replace('~/en/~','/',$url,1):$url;$en=$this->path($it);return '<nav aria-label="Language"><a href="'.esc_url($it).'" lang="it">IT</a> | <a href="'.esc_url($en).'" lang="en">EN</a></nav>';}
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.1</h1><p>Versione sperimentale: pagine e articoli standard. I contenuti Nimble, menu e librerie dinamiche non sono ancora tradotti. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.2</h1><p>Versione sperimentale: pagine e articoli standard. I contenuti Nimble, menu e librerie dinamiche non sono ancora tradotti. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
@@ -101,10 +101,10 @@ final class IRES_OSSREG_Multilingual {
   if(!current_user_can('manage_options'))wp_die('Forbidden');check_admin_referer('ires_ossreg_ml_test');
   $o=$this->opts();if(empty($o['api_key']))$this->redirect('Chiave Gemini non configurata');
   $endpoint='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($o['model']);
-  $r=wp_remote_get($endpoint,['timeout'=>15,'headers'=>['x-goog-api-key'=>$o['api_key']]]);
+  $r=wp_remote_post($endpoint.':generateContent',['timeout'=>30,'headers'=>['Content-Type'=>'application/json','x-goog-api-key'=>$o['api_key']],'body'=>wp_json_encode(['contents'=>[['parts'=>[['text'=>'Say OK']]]]])]);
   if(is_wp_error($r))$this->redirect('Connessione fallita: '.$r->get_error_message());
   $code=wp_remote_retrieve_response_code($r);
-  $this->redirect($code===200?'Connessione Gemini riuscita':'Gemini HTTP '.$code.' (verificare chiave e modello)');
+  $this->redirect($code===200?'Generazione Gemini riuscita':'Gemini HTTP '.$code.': '.substr(wp_strip_all_tags(wp_remote_retrieve_body($r)),0,450));
  }
  function redirect($message){wp_safe_redirect(add_query_arg(['page'=>'ires-ossreg-ml','ires_ml_msg'=>$message],admin_url('tools.php')));exit;}
  function save(){if(!current_user_can('manage_options'))wp_die('Forbidden');check_admin_referer('ires_ossreg_ml_save');$o=$this->opts();$key=isset($_POST['api_key'])?trim(sanitize_text_field(wp_unslash($_POST['api_key']))):'';if($key!=='')$o['api_key']=$key;$o['model']=isset($_POST['model'])?sanitize_text_field(wp_unslash($_POST['model'])):'gemini-2.5-flash';$o['public_enabled']=!empty($_POST['public_enabled']);update_option(self::OPT,$o,false);$this->redirect('Configurazione salvata');}
@@ -123,7 +123,7 @@ final class IRES_OSSREG_Multilingual {
   $endpoint='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($o['model']).':generateContent';
   $resp=wp_remote_post($endpoint,['timeout'=>120,'headers'=>['Content-Type'=>'application/json','x-goog-api-key'=>$o['api_key']],'body'=>wp_json_encode(['contents'=>[['parts'=>[['text'=>$prompt]]]],'generationConfig'=>['responseMimeType'=>'application/json']])]);
   if(is_wp_error($resp))return $resp;
-  $status=wp_remote_retrieve_response_code($resp);if($status!==200)return new WP_Error('gemini','Gemini HTTP '.$status);
+  $status=wp_remote_retrieve_response_code($resp);if($status!==200)return new WP_Error('gemini','Gemini HTTP '.$status.': '.substr(wp_strip_all_tags(wp_remote_retrieve_body($resp)),0,450));
   $body=json_decode(wp_remote_retrieve_body($resp),true);
   $translated=json_decode($body['candidates'][0]['content']['parts'][0]['text']??'',true);
   if(!is_array($translated)||!isset($translated['title'],$translated['content'])||!is_string($translated['title'])||!is_string($translated['content']))return new WP_Error('json','Risposta Gemini non valida');
