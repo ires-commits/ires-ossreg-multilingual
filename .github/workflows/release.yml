@@ -1,0 +1,23 @@
+name: Package WordPress plugin
+on:
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate plugin structure
+        run: |
+          test -f ires-ossreg-multilingual/ires-ossreg-multilingual.php
+          php -l ires-ossreg-multilingual/ires-ossreg-multilingual.php
+          if [ -f ires-ossreg-multilingual/github-updater.php ]; then php -l ires-ossreg-multilingual/github-updater.php; fi
+      - name: Package
+        run: zip -qr ires-ossreg-multilingual.zip ires-ossreg-multilingual
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" ires-ossreg-multilingual.zip --title "$GITHUB_REF_NAME" --generate-notes
