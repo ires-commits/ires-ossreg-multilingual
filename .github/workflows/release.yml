@@ -1,6 +1,8 @@
 name: Package WordPress plugin
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 permissions:
@@ -13,11 +15,24 @@ jobs:
       - name: Validate plugin structure
         run: |
           test -f ires-ossreg-multilingual/ires-ossreg-multilingual.php
-          php -l ires-ossreg-multilingual/ires-ossreg-multilingual.php
-          if [ -f ires-ossreg-multilingual/github-updater.php ]; then php -l ires-ossreg-multilingual/github-updater.php; fi
+          find ires-ossreg-multilingual -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^ *\* Version: *\([0-9][0-9.]*\).*/\1/p' ires-ossreg-multilingual/ires-ossreg-multilingual.php | head -n 1)
+          test -n "$version"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - name: Package
         run: zip -qr ires-ossreg-multilingual.zip ires-ossreg-multilingual
-      - name: Publish release
+      - name: Publish release if missing
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" ires-ossreg-multilingual.zip --title "$GITHUB_REF_NAME" --generate-notes
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skipping."
+          else
+            gh release create "$TAG" ires-ossreg-multilingual.zip --title "$TAG" --generate-notes --target "$GITHUB_SHA"
+          fi
