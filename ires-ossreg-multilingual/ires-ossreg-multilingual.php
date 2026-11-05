@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.3
+ * Version: 0.4.4
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -56,11 +56,11 @@ final class IRES_OSSREG_Multilingual {
  function hreflang(){if(!$this->opts()['public_enabled']||!is_singular())return;$url=get_permalink(get_queried_object_id());if(!$url)return;$it=str_replace(home_url('/en/'),home_url('/'),$url);$en=$this->path($it);echo '<link rel="alternate" hreflang="it" href="'.esc_url($it).'" />' . "\n";echo '<link rel="alternate" hreflang="en" href="'.esc_url($en).'" />' . "\n";}
  function switcher(){if(!$this->opts()['public_enabled']&&!current_user_can('manage_options'))return '';if(!is_singular())return '';$url=get_permalink(get_queried_object_id());$it=$this->enabled()?preg_replace('~/en/~','/',$url,1):$url;$en=$this->path($it);return '<nav aria-label="Language"><a href="'.esc_url($it).'" lang="it">IT</a> | <a href="'.esc_url($en).'" lang="en">EN</a></nav>';}
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.3</h1><p>Versione sperimentale: pagine e articoli standard. I contenuti Nimble, menu e librerie dinamiche non sono ancora tradotti. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.4</h1><p>Versione sperimentale: pagine e articoli standard. I contenuti Nimble, menu e librerie dinamiche non sono ancora tradotti. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.3</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.4</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   echo '<h2>Diagnostica</h2><p>PHP '.esc_html(PHP_VERSION).' | WordPress '.esc_html(get_bloginfo('version')).' | Gemini: '.(!empty($o['api_key'])?'chiave configurata':'chiave assente').' | Anteprima: '.(!$o['public_enabled']?'attiva':'disattivata').'</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_test">';wp_nonce_field('ires_ossreg_ml_test');submit_button('Verifica connessione Gemini','secondary','submit',false);echo '</form>';
@@ -81,6 +81,9 @@ final class IRES_OSSREG_Multilingual {
    $this->redirect('Nessuna release GitHub valida disponibile. Controlla GitHub Actions e la release.');
   }
   $plugin=plugin_basename(__FILE__);
+  if(!function_exists('is_plugin_active'))require_once ABSPATH.'wp-admin/includes/plugin.php';
+  $was_active=is_plugin_active($plugin);
+  $was_network_active=is_multisite() && is_plugin_active_for_network($plugin);
   if(!function_exists('get_plugin_data'))require_once ABSPATH.'wp-admin/includes/plugin.php';
   $installed=get_plugin_data(__FILE__,false,false)['Version'];
   if(!version_compare($release['version'],$installed,'>')){
@@ -106,7 +109,12 @@ final class IRES_OSSREG_Multilingual {
   if(is_wp_error($result))$this->redirect('Aggiornamento fallito: '.$result->get_error_message());
   if(!$result)$this->redirect('Aggiornamento non completato. Verificare permessi file e diagnostica WordPress.');
   wp_clean_plugins_cache(true);
-  $this->redirect('Aggiornamento GitHub completato alla versione '.$release['version']);
+  if(($was_active||$was_network_active)&&!is_plugin_active($plugin)&&!is_plugin_active_for_network($plugin)){
+   $activation=activate_plugin($plugin,'',$was_network_active,true);
+   if(is_wp_error($activation))$this->redirect('Aggiornamento completato ma riattivazione fallita: '.$activation->get_error_message());
+  }
+  if(($was_active||$was_network_active)&&!is_plugin_active($plugin)&&!is_plugin_active_for_network($plugin))$this->redirect('Aggiornamento completato ma plugin non attivo: verificare la pagina Plugin.');
+  $this->redirect('Aggiornamento GitHub completato alla versione '.$release['version'].'; plugin '.(is_plugin_active($plugin)||is_plugin_active_for_network($plugin)?'attivo':'non attivo').'.');
  }
  function test_api(){
   if(!current_user_can('manage_options'))wp_die('Forbidden');check_admin_referer('ires_ossreg_ml_test');
