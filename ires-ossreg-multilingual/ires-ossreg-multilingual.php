@@ -107,6 +107,7 @@ final class IRES_OSSREG_Multilingual {
   foreach($items as $item){
    $key=mb_strtolower(trim(wp_strip_all_tags($item->title)),'UTF-8');
    if(isset($labels[$key]))$item->title=$labels[$key];
+   elseif(!empty($item->object_id)&&in_array($item->object??'',['post','page'],true)){$t=$this->item((int)$item->object_id);if($t&&!empty($t['title']))$item->title=sanitize_text_field($t['title']);}
    if(!empty($item->url)&&strpos($item->url,home_url('/'))===0)$item->url=$this->path($item->url);
   }
   return $items;
