@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.18
+ * Version: 0.4.19
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -15,6 +15,7 @@ final class IRES_OSSREG_Multilingual {
  const SOURCE='_ires_ossreg_en_source_hash';
  function __construct(){
   add_action('init',[$this,'rewrite']);
+  add_action('wp',function(){if($this->enabled())$GLOBALS['ires_ossreg_nimble_frontend']=true;},1);
   add_action('template_redirect',[$this,'guard_preview'],0);
   add_filter('redirect_canonical',[$this,'canonical'],10,2);
   add_filter('wp_redirect',[$this,'preserve_english_url'],999,2);
@@ -25,6 +26,7 @@ final class IRES_OSSREG_Multilingual {
   add_filter('page_link',[$this,'page_permalink'],10,2);
   add_filter('nav_menu_link_attributes',[$this,'menu_link'],20,4);
   add_filter('wp_nav_menu_objects',[$this,'menu_labels'],20,2);
+  add_filter('wp_nav_menu_items',[$this,'menu_html'],25,2);
   add_filter('the_posts',[$this,'translated_posts'],20,2);
   add_filter('the_content',[$this,'content'],50);
   add_filter('the_title',[$this,'title'],50,2);
@@ -109,6 +111,10 @@ final class IRES_OSSREG_Multilingual {
   }
   return $items;
  }
+ function menu_html($html,$args){
+  if(!$this->enabled())return $html;
+  return $html;
+ }
  function item($id){$t=get_post_meta($id,self::META,true);$hash=get_post_meta($id,self::SOURCE,true);$p=get_post($id);if(!$p||!is_array($t)||!isset($t['title'],$t['content']))return null;$current=hash('sha256',$p->post_title."\n".$p->post_content);return hash_equals((string)$hash,$current)?$t:null;}
  function translated_posts($posts,$query){
   if(!$query->is_main_query()||!$query->is_singular()||!$this->enabled()||empty($posts))return $posts;
@@ -152,15 +158,15 @@ final class IRES_OSSREG_Multilingual {
  }
 
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.18</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I blocchi Nimble e le librerie dinamiche richiedono ancora integrazione dedicata. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.19</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.18</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.19</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_counts=wp_count_posts('nimble_post_type');
   $nimble_total=$nimble_counts?array_sum((array)$nimble_counts):0;
-  echo '<p><strong>Nimble:</strong> '.(int)$nimble_total.' record di layout. Traduzione strutturata non ancora attiva.</p>';
+  echo '<p><strong>Nimble:</strong> '.(int)$nimble_total.' record di layout. Traduzione strutturata attiva nelle query WordPress compatibili in anteprima inglese.</p>';
   echo '<details style="max-width:950px;margin:18px 0"><summary style="cursor:pointer;font-weight:600">Diagnostica avanzata (facoltativa)</summary><div style="padding:12px 16px;background:#fff;border:1px solid #ddd;margin-top:8px">';
   echo '<p>Homepage: '.esc_html(get_option('show_on_front')).'. Contenuti Nimble serializzati in post_content.</p>';
   $sample_ids=get_posts(['post_type'=>['nimble_post_type','nimble_section','nimble_template'],'post_status'=>'any','numberposts'=>12,'fields'=>'ids','orderby'=>'ID','order'=>'DESC']);
@@ -200,8 +206,8 @@ final class IRES_OSSREG_Multilingual {
   echo '<tr><th>Record da tradurre o aggiornare</th><td>'.(int)$n_pending.'</td></tr>';
   echo '<tr><th>Campi testuali tradotti in cache</th><td>'.(int)$n_fields.'</td></tr>';
   echo '<tr><th>Record senza campi traducibili o non supportati</th><td>'.(int)$n_empty.'</td></tr>';
-  echo '</tbody></table><p>Conteggi aggiornati a ogni caricamento della pagina, senza chiamate a Gemini. La cache Nimble non è ancora applicata al frontend.</p>';
-  echo '<h2>Preparazione traduzioni Nimble</h2><p>Salva una cache inglese separata senza modificare i layout originali. In questa fase la cache non viene ancora mostrata sul sito pubblico.</p><p><button type="button" class="button" id="ires-nimble-run">Prepara traduzioni Nimble</button> <button type="button" class="button" id="ires-nimble-stop" disabled>Interrompi</button></p><p id="ires-nimble-result" role="status"></p>';
+  echo '</tbody></table><p>Conteggi aggiornati a ogni caricamento della pagina, senza chiamate a Gemini. La cache Nimble viene applicata alle query WordPress compatibili nella versione inglese. Alcuni moduli dinamici potrebbero richiedere integrazione dedicata.</p>';
+  echo '<h2>Preparazione traduzioni Nimble</h2><p>Salva una cache inglese separata senza modificare i layout originali. La cache viene usata nella versione inglese quando disponibile; l'anteprima rimane riservata agli amministratori finché non abiliti la pubblicazione.</p><p><button type="button" class="button" id="ires-nimble-run">Prepara traduzioni Nimble</button> <button type="button" class="button" id="ires-nimble-stop" disabled>Interrompi</button></p><p id="ires-nimble-result" role="status"></p>';
   echo '<script>document.addEventListener("DOMContentLoaded",function(){var run=document.getElementById("ires-nimble-run"),stop=document.getElementById("ires-nimble-stop"),out=document.getElementById("ires-nimble-result"),cancel=false;stop.onclick=function(){cancel=true};run.onclick=async function(){cancel=false;run.disabled=true;stop.disabled=false;out.textContent="Elaborazione avviata. Attendo la risposta di Gemini per il prossimo record...";var count=0,fields=0,skipped=0;try{while(!cancel){out.textContent="Richiesta in corso... Record completati in questa sessione: "+count+"; campi: "+fields+". Attendere fino a 2 minuti per risposta.";var fd=new FormData();fd.append("action","ires_ossreg_nimble_batch");fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_nimble_batch')).'");var response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});var data=await response.json();if(!data.success)throw new Error(data.data&&data.data.message||"Errore");if(data.data.done){out.textContent="Sessione terminata: "+count+" record tradotti, "+fields+" campi, "+skipped+" record rinviati. I rinviati saranno riprovati dopo 30 minuti.";break;}if(data.data.skipped){skipped++;out.textContent="Record #"+data.data.id+" rinviato per errore di rete. Rinviati: "+skipped+"; tradotti: "+count;continue;}count++;fields+=data.data.fields;out.textContent="Elaborati "+count+" record e "+fields+" campi. Rinviati: "+skipped+". Ultimo #"+data.data.id;}}catch(e){out.textContent="Interrotto: "+e.message}finally{run.disabled=false;stop.disabled=true}}});</script>';
   echo '<h2>Diagnostica</h2><p>PHP '.esc_html(PHP_VERSION).' | WordPress '.esc_html(get_bloginfo('version')).' | Gemini: '.(!empty($o['api_key'])?'chiave configurata':'chiave assente').' | Anteprima: '.(!$o['public_enabled']?'attiva':'disattivata').'</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_test">';wp_nonce_field('ires_ossreg_ml_test');submit_button('Verifica connessione Gemini','secondary','submit',false);echo '</form>';
