@@ -9,7 +9,7 @@ final class IRES_OSSREG_English_Links {
   $site=wp_parse_url($home);
   $parts=wp_parse_url($decoded);
   if(!is_array($parts))return $url;
-  if(isset($parts['host'])&&strcasecmp($parts['host'],$site['host']??'')!==0)return $url;
+  if(isset($parts['host'])&&strcasecmp(preg_replace('~^www\\.~i','',$parts['host']),preg_replace('~^www\\.~i','',$site['host']??''))!==0)return $url;
   if(isset($parts['scheme'])&&!in_array(strtolower($parts['scheme']),['http','https'],true))return $url;
   $base=rtrim($site['path']??'/','/');
   $path=$parts['path']??'';
