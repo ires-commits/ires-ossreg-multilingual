@@ -94,6 +94,7 @@ final class IRES_OSSREG_Frontend_Translation {
     if($original!==''&&$english!==''&&$original!==$english&&!isset($map[$original]))$map[$original]=$english;
    }
   }
+  foreach(IRES_OSSREG_Event_Titles::map() as $source=>$english){if(!isset($map[$source]))$map[$source]=$english;}
   return $map;
  }
  static function render($html){
