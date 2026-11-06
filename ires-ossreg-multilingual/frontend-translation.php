@@ -30,6 +30,13 @@ final class IRES_OSSREG_Frontend_Translation {
    'Si accede tramite un bando di concorso, pubblicato annualmente, a:'=>'Accommodation is allocated through an annual application process at:',
    'A Torino è possibile alloggiare presso le seguenti strutture residenziali, previo contatto.'=>'In Turin, accommodation is available at the following residences. Please contact them directly.',
    'Autore'=>'Author',
+   'Gennaio'=>'January',
+   'Marzo'=>'March',
+   'Maggio'=>'May',
+   'Agosto'=>'August',
+   'Ottobre'=>'October',
+   'Novembre'=>'November',
+   'Dicembre'=>'December',
    'Febbraio'=>'February',
    'Aprile'=>'April',
    'Settembre'=>'September',
@@ -66,6 +73,16 @@ final class IRES_OSSREG_Frontend_Translation {
     $target=trim(wp_strip_all_tags($translated));
     if($source!==''&&$target!==''&&$source!==$target&&!isset($map[$source]))$map[$source]=$target;
    }
+  }
+  // Reuse the existing standard post/page translation cache for cards and event listings.
+  $standard_ids=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true]);
+  foreach($standard_ids as $id){
+   $post=get_post($id);if(!$post)continue;
+   $cached=get_post_meta($id,'_ires_ossreg_en_translation',true);
+   $hash=get_post_meta($id,'_ires_ossreg_en_source_hash',true);
+   if(!is_array($cached)||!isset($cached['title'])||!hash_equals((string)$hash,hash('sha256',$post->post_title."\\n".$post->post_content)))continue;
+   $source=trim(wp_strip_all_tags($post->post_title));$target=trim(wp_strip_all_tags($cached['title']));
+   if($source!==''&&$target!==''&&$source!==$target&&!isset($map[$source]))$map[$source]=$target;
   }
   $doc_ids=get_posts(['post_type'=>IRES_OSSREG_Dynamic_Cache::types(),'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true]);
   foreach($doc_ids as $id){
