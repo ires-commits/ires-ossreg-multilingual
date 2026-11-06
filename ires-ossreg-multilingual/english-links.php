@@ -20,8 +20,13 @@ final class IRES_OSSREG_English_Links {
   $new=home_url('/'.$relative);
   $query=[];
   if(isset($parts['query']))parse_str($parts['query'],$query);
-  $query['ossreg_lang']='en';
-  $new=add_query_arg($query,$new);
+  $use_path=(bool)preg_match('~^(?:category/|documento/|pubblicazioni/|news/|[^/]+/?$)~i',$relative);
+  if($use_path && preg_match('~^(?:category/|documento/)~i',$relative)){
+   $new=home_url('/en/'.$relative);
+  }else{
+   $query['ossreg_lang']='en';
+  }
+  if($query)$new=add_query_arg($query,$new);
   if(isset($parts['fragment']))$new.='#'.$parts['fragment'];
   return esc_url($new);
  }
