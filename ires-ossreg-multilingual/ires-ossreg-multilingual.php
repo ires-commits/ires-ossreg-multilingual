@@ -2,12 +2,13 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.14
+ * Version: 0.4.15
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
 if (!defined('ABSPATH')) exit;
 require_once __DIR__.'/github-updater.php';
+require_once __DIR__.'/nimble-cache.php';
 final class IRES_OSSREG_Multilingual {
  const OPT='ires_ossreg_ml_settings';
  const META='_ires_ossreg_en_translation';
@@ -151,11 +152,11 @@ final class IRES_OSSREG_Multilingual {
  }
 
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.14</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I blocchi Nimble e le librerie dinamiche richiedono ancora integrazione dedicata. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.15</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I blocchi Nimble e le librerie dinamiche richiedono ancora integrazione dedicata. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.14</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.15</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_counts=wp_count_posts('nimble_post_type');
   $nimble_total=$nimble_counts?array_sum((array)$nimble_counts):0;
@@ -179,6 +180,8 @@ final class IRES_OSSREG_Multilingual {
   if(!$counts)echo '<p>Nessun campo individuato nel campione.</p>';
   foreach(array_slice($counts,0,25,true) as $key=>$n){echo '<p><code>'.esc_html($key).'</code>: '.(int)$n.'</p>';}
   echo '<p>Diagnostica di sola lettura. Non vengono mostrati valori, testi o credenziali.</p></div></details>';
+  echo '<h2>Preparazione traduzioni Nimble</h2><p>Salva una cache inglese separata senza modificare i layout originali. In questa fase la cache non viene ancora mostrata sul sito pubblico.</p><p><button type="button" class="button" id="ires-nimble-run">Prepara traduzioni Nimble</button> <button type="button" class="button" id="ires-nimble-stop" disabled>Interrompi</button></p><p id="ires-nimble-result" role="status"></p>';
+  echo '<script>document.addEventListener("DOMContentLoaded",function(){var run=document.getElementById("ires-nimble-run"),stop=document.getElementById("ires-nimble-stop"),out=document.getElementById("ires-nimble-result"),cancel=false;stop.onclick=function(){cancel=true};run.onclick=async function(){cancel=false;run.disabled=true;stop.disabled=false;var count=0,fields=0;try{while(!cancel){var fd=new FormData();fd.append("action","ires_ossreg_nimble_batch");fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_nimble_batch')).'");var response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});var data=await response.json();if(!data.success)throw new Error(data.data&&data.data.message||"Errore");if(data.data.done){out.textContent="Completato: "+count+" record e "+fields+" campi.";break;}count++;fields+=data.data.fields;out.textContent="Elaborati "+count+" record e "+fields+" campi. Ultimo #"+data.data.id;}}catch(e){out.textContent="Interrotto: "+e.message}finally{run.disabled=false;stop.disabled=true}}});</script>';
   echo '<h2>Diagnostica</h2><p>PHP '.esc_html(PHP_VERSION).' | WordPress '.esc_html(get_bloginfo('version')).' | Gemini: '.(!empty($o['api_key'])?'chiave configurata':'chiave assente').' | Anteprima: '.(!$o['public_enabled']?'attiva':'disattivata').'</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_test">';wp_nonce_field('ires_ossreg_ml_test');submit_button('Verifica connessione Gemini','secondary','submit',false);echo '</form>';
   echo '<h2>Traduzione batch (sperimentale)</h2><p>Elabora una pagina alla volta, soltanto mentre questa scheda rimane aperta. Le pagine con dati Nimble sono escluse automaticamente per evitare traduzioni parziali. Ogni richiesta Gemini può comportare costi o limiti di quota.</p><p><button type="button" class="button button-secondary" id="ires-ml-batch">Traduci contenuti standard mancanti</button> <button type="button" class="button" id="ires-ml-stop" disabled>Interrompi</button></p><p id="ires-ml-progress" role="status" aria-live="polite"></p>';
