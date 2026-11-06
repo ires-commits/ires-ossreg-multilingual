@@ -116,6 +116,10 @@ final class IRES_OSSREG_Frontend_Translation {
     // Translate Italian month names in complete dates, without requiring JavaScript.
     $months=['gennaio'=>'January','febbraio'=>'February','marzo'=>'March','aprile'=>'April','maggio'=>'May','giugno'=>'June','luglio'=>'July','agosto'=>'August','settembre'=>'September','ottobre'=>'October','novembre'=>'November','dicembre'=>'December'];
     $date=preg_replace_callback('/\\b([0-3]?[0-9])\\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\\s+([12][0-9]{3})\\b/iu',static function($m)use($months){return $m[1].' '.$months[mb_strtolower($m[2],'UTF-8')].' '.$m[3];},$decoded);
+    // Date ranges may contain two months (e.g. 5 settembre – 31 ottobre 2021).
+    if(preg_match('/\\b[0-3]?[0-9]\\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\\b/iu',$decoded)){
+     $date=preg_replace_callback('/\\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\\b/iu',static function($m)use($months){return $months[mb_strtolower($m[1],'UTF-8')];},$decoded);
+    }
     if($date===$decoded)continue;
     $replacement=esc_html($date);
    }else{$replacement=esc_html($map[$decoded]);}
