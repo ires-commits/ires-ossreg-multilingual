@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.50
+ * Version: 0.4.51
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
