@@ -80,7 +80,7 @@ final class IRES_OSSREG_Frontend_Translation {
    $post=get_post($id);if(!$post)continue;
    $cached=get_post_meta($id,'_ires_ossreg_en_translation',true);
    $hash=get_post_meta($id,'_ires_ossreg_en_source_hash',true);
-   if(!is_array($cached)||!isset($cached['title'])||!hash_equals((string)$hash,hash('sha256',$post->post_title."\\n".$post->post_content)))continue;
+   if(!is_array($cached)||!isset($cached['title'])||!hash_equals((string)$hash,hash('sha256',$post->post_title."\n".$post->post_content)))continue;
    $source=trim(wp_strip_all_tags($post->post_title));$target=trim(wp_strip_all_tags($cached['title']));
    if($source!==''&&$target!==''&&$source!==$target&&!isset($map[$source]))$map[$source]=$target;
   }
