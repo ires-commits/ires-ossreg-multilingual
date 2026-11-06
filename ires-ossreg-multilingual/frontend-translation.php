@@ -28,6 +28,16 @@ final class IRES_OSSREG_Frontend_Translation {
     $map[$source]=$target;
    }
   }
+  $doc_ids=get_posts(['post_type'=>IRES_OSSREG_Dynamic_Cache::types(),'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true]);
+  foreach($doc_ids as $id){
+   $post=get_post($id);if(!$post)continue;
+   $translated=IRES_OSSREG_Dynamic_Cache::cached($post);
+   if(!$translated)continue;
+   foreach(IRES_OSSREG_Dynamic_Cache::source($post) as $i=>$source){
+    $original=trim(wp_strip_all_tags($source));$english=trim(wp_strip_all_tags($translated[$i]??''));
+    if($original!==''&&$english!==''&&$original!==$english&&!isset($map[$original]))$map[$original]=$english;
+   }
+  }
   return $map;
  }
  static function render($html){
