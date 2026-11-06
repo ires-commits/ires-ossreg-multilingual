@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.24
+ * Version: 0.4.25
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -11,6 +11,7 @@ require_once __DIR__.'/github-updater.php';
 require_once __DIR__.'/nimble-cache.php';
 require_once __DIR__.'/frontend-translation.php';
 require_once __DIR__.'/dynamic-cache.php';
+require_once __DIR__.'/nimble-longtext.php';
 final class IRES_OSSREG_Multilingual {
  const OPT='ires_ossreg_ml_settings';
  const META='_ires_ossreg_en_translation';
@@ -37,7 +38,6 @@ final class IRES_OSSREG_Multilingual {
   add_action('wp_head',[$this,'hreflang']);
   add_shortcode('ires_ossreg_language_switcher',[$this,'switcher']);
   add_action('wp_footer',[$this,'floating_switcher'],100);
-  add_action('wp_footer',[$this,'document_preview_diagnostic'],110);
   add_action('admin_menu',[$this,'admin_menu']);
   add_action('admin_post_ires_ossreg_ml_test',[$this,'test_api']);
   add_action('admin_post_ires_ossreg_ml_github_update',[$this,'github_update']);
@@ -168,14 +168,6 @@ final class IRES_OSSREG_Multilingual {
   $english=$this->enabled();
   return '<nav class="ires-ossreg-language" aria-label="Choose language"><a class="ires-lang-it'.(!$english?' is-current':'').'" href="'.esc_url($it).'" lang="it" hreflang="it" aria-label="Italiano" '.(!$english?'aria-current="page"':'').'>🇮🇹 <span>IT</span></a><a class="ires-lang-en'.($english?' is-current':'').'" href="'.esc_url($en).'" lang="en" hreflang="en" aria-label="English" '.($english?'aria-current="page"':'').'>🇬🇧 <span>EN</span></a></nav>';
  }
- function document_preview_diagnostic(){
-  if(!current_user_can('manage_options')||!$this->enabled())return;
-  $uri=(string)($_SERVER['REQUEST_URI']??'');
-  if(strpos($uri,'/en/documento/')===false)return;
-  global $wp_query;
-  $id=get_queried_object_id();$p=$id?get_post($id):null;
-  echo '<div style="position:fixed;bottom:12px;left:12px;z-index:999999;background:#fff;border:1px solid #ccd5df;border-radius:8px;padding:9px 12px;font:12px system-ui;color:#27394c;box-shadow:0 3px 15px #0002">OSSREG EN diagnostica: '.esc_html('HTTP '.http_response_code().' | ID '.(int)$id.' | Tipo '.($p?$p->post_type:'nessuno').' | 404 '.($wp_query->is_404()?'sì':'no').' | Template '.basename((string)get_page_template())).'</div>';
- }
  function floating_switcher(){
   if(is_admin()||(!$this->opts()['public_enabled']&&!current_user_can('manage_options')))return;
   echo '<style>.ires-ossreg-language{display:inline-flex;align-items:center;gap:3px;padding:5px;background:#fff;border:1px solid #dce3ea;border-radius:999px;box-shadow:0 4px 18px rgba(0,0,0,.14);font:600 12px/1.3 system-ui,sans-serif;z-index:99999}.ires-ossreg-language a{display:flex;align-items:center;gap:5px;padding:7px 9px;border-radius:999px;text-decoration:none!important;color:#24384b!important;white-space:nowrap}.ires-ossreg-language a.is-current{background:#e9f1fa;color:#143b63!important}.ires-ossreg-language a:focus-visible{outline:2px solid #1769aa;outline-offset:2px}.ires-ossreg-floating{position:fixed;top:14px;right:14px;z-index:99999}@media(max-width:600px){.ires-ossreg-floating{top:8px;right:8px}.ires-ossreg-language{padding:3px}.ires-ossreg-language a{padding:6px}}</style>';
@@ -186,11 +178,11 @@ final class IRES_OSSREG_Multilingual {
  }
 
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.24</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.25</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.24</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.25</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_counts=wp_count_posts('nimble_post_type');
   $nimble_total=$nimble_counts?array_sum((array)$nimble_counts):0;
@@ -240,6 +232,9 @@ final class IRES_OSSREG_Multilingual {
   $document_ids=get_posts(['post_type'=>'dlp_document','post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true]);
   $document_done=0;
   foreach($document_ids as $document_id){$document=get_post($document_id);if($document&&IRES_OSSREG_Dynamic_Cache::cached($document))$document_done++;}
+  echo '<h2>Testi lunghi Nimble</h2><p>Traduzione integrativa dei paragrafi lunghi, separata dalle cache già completate. Nessun layout o testo italiano viene modificato.</p>';
+  echo '<p><button type="button" class="button" id="ires-long-run">Traduci paragrafi Nimble</button> <button type="button" class="button" id="ires-long-stop" disabled>Interrompi</button></p><p id="ires-long-status" role="status" aria-live="polite"></p>';
+  echo '<script>document.addEventListener("DOMContentLoaded",function(){var run=document.getElementById("ires-long-run"),stop=document.getElementById("ires-long-stop"),out=document.getElementById("ires-long-status"),cancel=false;stop.onclick=function(){cancel=true;out.textContent="Interruzione richiesta: attendo la risposta in corso."};run.onclick=async function(){cancel=false;run.disabled=true;stop.disabled=false;var done=0,skipped=0,fields=0;try{while(!cancel){out.textContent="Traduzione paragrafi in corso: "+done+" richieste, "+fields+" campi, "+skipped+" rinviati.";var fd=new FormData();fd.append("action","ires_ossreg_long_batch");fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_long_batch')).'");var response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});var result=await response.json();if(!result.success)throw new Error(result.data?.message||"Errore");if(result.data.done){out.textContent="Elaborazione completata: "+fields+" paragrafi tradotti, "+skipped+" richieste rinviate.";break;}if(result.data.skipped)skipped++;else{done++;fields+=result.data.fields||0;}}}catch(e){out.textContent="Interrotto: "+e.message}finally{run.disabled=false;stop.disabled=true}}});</script>';
   echo '<h2>Traduzioni schede pubblicazioni</h2><p>Document Library Pro: '.(int)$document_done.' di '.count($document_ids).' schede in cache. Titoli, descrizioni e contenuti web; i PDF non vengono modificati.</p>';
   echo '<p><button type="button" class="button" id="ires-dynamic-run">Traduci schede pubblicazioni</button> <button type="button" class="button" id="ires-dynamic-stop" disabled>Interrompi</button></p><p id="ires-dynamic-result" role="status" aria-live="polite"></p>';
   echo '<script>document.addEventListener("DOMContentLoaded",function(){var run=document.getElementById("ires-dynamic-run"),stop=document.getElementById("ires-dynamic-stop"),out=document.getElementById("ires-dynamic-result"),cancel=false;stop.onclick=function(){cancel=true;out.textContent="Interruzione richiesta: attendo la risposta in corso."};run.onclick=async function(){cancel=false;run.disabled=true;stop.disabled=false;var done=0,skipped=0;try{while(!cancel){out.textContent="Elaborazione pubblicazioni in corso. Tradotte: "+done+"; rinviate: "+skipped;var fd=new FormData();fd.append("action","ires_ossreg_dynamic_batch");fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_dynamic_batch')).'");var response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});var result=await response.json();if(!result.success)throw new Error(result.data?.message||"Errore");if(result.data.done){out.textContent="Sessione completata. Tradotte: "+done+"; rinviate: "+skipped+". Aggiorna la pagina per i conteggi.";break;}if(result.data.skipped)skipped++;else done++;}}catch(e){out.textContent="Interrotto: "+e.message}finally{run.disabled=false;stop.disabled=true}}});</script>';
