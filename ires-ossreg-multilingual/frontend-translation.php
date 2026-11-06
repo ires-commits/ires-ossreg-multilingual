@@ -3,6 +3,15 @@ if (!defined('ABSPATH')) exit;
 final class IRES_OSSREG_Frontend_Translation {
  static function map(){
   $map=[
+   'Informare gli studenti sulla borsa di studio: quale effetto sul passaggio scuola-università?'=>'Informing students about scholarships: what effect on the school-to-university transition?',
+   'Gli esiti occupazionali dei laureati'=>'Graduate employment outcomes',
+   'Il diritto allo studio universitario in Italia: un quadro attuativo disuniforme'=>'The right to higher education in Italy: an uneven implementation landscape',
+   'All’Università con la borsa di studio, ma non in pochi'=>'Attending university with a scholarship: opportunities and challenges',
+   'Diritto allo studio scolastico: questo sconosciuto'=>'School student support: the overlooked right',
+   'Informare gli studenti sul diritto allo studio aumenta le iscrizioni'=>'Informing students about student support increases enrolment',
+   'Scarica'=>'Download',
+   'Anteprima'=>'Preview',
+
    'Pubblicati dati sugli Iscritti agli atenei in Piemonte per l’Anno Accademico 2025/26'=>'New data published on university enrolments in Piedmont for the 2025/26 academic year',
    'Gli interventi per gli studenti in Italia'=>'Student support measures in Italy',
    'I borsisti in Italia'=>'Scholarship recipients in Italy',
