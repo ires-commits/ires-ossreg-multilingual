@@ -16,6 +16,33 @@ final class IRES_OSSREG_Nimble_Cache {
   $walk($tree);
   return $found;
  }
+ static function translated_content($post){
+  if(!($post instanceof WP_Post)||!in_array($post->post_type,['nimble_post_type','nimble_section','nimble_template'],true)||!is_serialized($post->post_content))return $post;
+  $cache=get_post_meta($post->ID,self::META,true);
+  if(!is_array($cache)||($cache['hash']??'')!==hash('sha256',$post->post_content)||!isset($cache['translations'])||!is_array($cache['translations']))return $post;
+  $tree=maybe_unserialize($post->post_content);
+  if(!is_array($tree)||count(self::fields($tree))!==count($cache['translations']))return $post;
+  $index=0;$translated=$cache['translations'];
+  $walk=function(&$node,$depth=0)use(&$walk,&$index,$translated){
+   if($depth>20||!is_array($node))return;
+   foreach($node as $key=>&$value){
+    if(is_array($value)){$walk($value,$depth+1);continue;}
+    if(!is_string($key)||!in_array($key,['heading_text','title_text','text_content','button_text','description','content'],true)||!is_string($value))continue;
+    if(mb_strlen(trim(wp_strip_all_tags($value)))<3)continue;
+    if(isset($translated[$index])&&is_string($translated[$index]))$value=$translated[$index];
+    $index++;
+   }
+   unset($value);
+  };
+  $walk($tree);
+  if($index!==count($translated))return $post;
+  $copy=clone $post;$copy->post_content=serialize($tree);return $copy;
+ }
+ static function translate_query_posts($posts,$query){
+  if(is_admin()||!isset($GLOBALS['ires_ossreg_nimble_frontend'])||!$GLOBALS['ires_ossreg_nimble_frontend'])return $posts;
+  foreach($posts as $i=>$post){$posts[$i]=self::translated_content($post);}
+  return $posts;
+ }
  static function run(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Permesso negato'],403);
   check_ajax_referer('ires_ossreg_nimble_batch');
@@ -57,3 +84,5 @@ final class IRES_OSSREG_Nimble_Cache {
  }
 }
 add_action('wp_ajax_ires_ossreg_nimble_batch',['IRES_OSSREG_Nimble_Cache','run']);
+
+add_filter('the_posts',['IRES_OSSREG_Nimble_Cache','translate_query_posts'],9,2);
