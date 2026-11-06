@@ -3,6 +3,14 @@ if (!defined('ABSPATH')) exit;
 final class IRES_OSSREG_Frontend_Translation {
  static function map(){
   $map=[
+   'Pubblicati dati sugli Iscritti agli atenei in Piemonte per l’Anno Accademico 2025/26'=>'New data published on university enrolments in Piedmont for the 2025/26 academic year',
+   'Gli interventi per gli studenti in Italia'=>'Student support measures in Italy',
+   'I borsisti in Italia'=>'Scholarship recipients in Italy',
+   'I borsisti in Piemonte'=>'Scholarship recipients in Piedmont',
+   'Dati aggiornati a.a. 2024/25'=>'Updated data for academic year 2024/25',
+   'Dati definitivi a.a. 2025/26'=>'Final data for academic year 2025/26',
+   'Consulta i dati in questa pagina'=>'View the data on this page',
+   'Programma'=>'Programme',
    'Dati e statistiche'=>'Data and statistics',
    'Studiare in Piemonte'=>'Studying in Piedmont',
    'Pubblicazioni'=>'Publications',
