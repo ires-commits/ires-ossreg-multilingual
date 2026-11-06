@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.22
+ * Version: 0.4.23
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -69,6 +69,16 @@ final class IRES_OSSREG_Multilingual {
    return;
   }
   $slug=substr($request,3);
+  if(strpos($slug,'documento/')===0){
+   $document_slug=trim(substr($slug,strlen('documento/')),'/');
+   $document=get_page_by_path($document_slug,OBJECT,'dlp_document');
+   if($document&&$document->post_status==='publish'){
+    unset($wp->query_vars['pagename'],$wp->query_vars['name'],$wp->query_vars['page_id']);
+    $wp->query_vars['p']=$document->ID;
+    $wp->query_vars['post_type']='dlp_document';
+    return;
+   }
+  }
   $page=get_page_by_path($slug,OBJECT,'page');
   $post=$page?:get_page_by_path($slug,OBJECT,'post');
   if(!$post){
@@ -123,6 +133,11 @@ final class IRES_OSSREG_Multilingual {
  function translated_posts($posts,$query){
   if(!$query->is_main_query()||!$query->is_singular()||!$this->enabled()||empty($posts))return $posts;
   foreach($posts as $i=>$post){
+   if($post->post_type==='dlp_document'){
+    $dynamic=IRES_OSSREG_Dynamic_Cache::cached($post);
+    if($dynamic){$copy=clone $post;$copy->post_title=$dynamic[0];$copy->post_excerpt=$dynamic[1];$copy->post_content=$dynamic[2];$posts[$i]=$copy;}
+    continue;
+   }
    $translation=$this->item($post->ID);
    if(!$translation)continue;
    $copy=clone $post;
@@ -162,11 +177,11 @@ final class IRES_OSSREG_Multilingual {
  }
 
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.22</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.23</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.22</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.23</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_counts=wp_count_posts('nimble_post_type');
   $nimble_total=$nimble_counts?array_sum((array)$nimble_counts):0;
