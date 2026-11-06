@@ -25,7 +25,6 @@ final class IRES_OSSREG_Frontend_Translation {
     $target=trim(wp_strip_all_tags($cache['translations'][$i]??''));
     if(mb_strlen($source)<3||$target===''||$source===$target||isset($map[$source]))continue;
     // Avoid ambiguous source phrases whose translations disagree between records.
-    if(isset($map[$source])&&$map[$source]!==$target)continue;
     $map[$source]=$target;
    }
   }
@@ -49,7 +48,6 @@ final class IRES_OSSREG_Frontend_Translation {
    $decoded=html_entity_decode(trim($part),ENT_QUOTES|ENT_HTML5,'UTF-8');
    if(!isset($map[$decoded]))continue;
    $replacement=esc_html($map[$decoded]);
-   $parts[$i]=preg_replace('/^\\s*/u','$0',$part,1);
    preg_match('/^\\s*/u',$part,$leading);preg_match('/\\s*$/u',$part,$trailing);
    $parts[$i]=($leading[0]??'').$replacement.($trailing[0]??'');
   }
