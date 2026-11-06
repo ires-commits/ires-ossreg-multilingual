@@ -24,6 +24,8 @@ final class IRES_OSSREG_Nimble_Cache {
   if(!$key)wp_send_json_error(['message'=>'Chiave Gemini assente'],400);
   $ids=get_posts(['post_type'=>['nimble_post_type','nimble_section','nimble_template'],'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','orderby'=>'ID','order'=>'ASC']);
   foreach($ids as $id){
+   $failures=get_option('ires_ossreg_nimble_failures',[]);
+   if(is_array($failures)&&isset($failures[$id])&&time()-(int)($failures[$id]['time']??0)<1800)continue;
    $post=get_post($id);if(!$post||!is_serialized($post->post_content))continue;
    $hash=hash('sha256',$post->post_content);
    $cached=get_post_meta($id,self::META,true);
@@ -35,13 +37,20 @@ final class IRES_OSSREG_Nimble_Cache {
    $model=$settings['model']??'gemini-2.5-flash';
    $endpoint='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($model).':generateContent';
    $resp=wp_remote_post($endpoint,['timeout'=>120,'headers'=>['Content-Type'=>'application/json','x-goog-api-key'=>$key],'body'=>wp_json_encode(['contents'=>[['parts'=>[['text'=>$prompt]]]],'generationConfig'=>['responseMimeType'=>'application/json']])]);
-   if(is_wp_error($resp))wp_send_json_error(['message'=>$resp->get_error_message()],400);
+   if(is_wp_error($resp)){
+    $failures=get_option('ires_ossreg_nimble_failures',[]);
+    if(!is_array($failures))$failures=[];
+    $failures[$id]=['time'=>time(),'error'=>sanitize_text_field($resp->get_error_message())];
+    update_option('ires_ossreg_nimble_failures',$failures,false);
+    wp_send_json_success(['done'=>false,'id'=>$id,'fields'=>0,'skipped'=>true,'message'=>'Timeout o errore di rete; record rinviato']);
+   }
    if(wp_remote_retrieve_response_code($resp)!==200)wp_send_json_error(['message'=>'Gemini HTTP '.wp_remote_retrieve_response_code($resp)],400);
    $body=json_decode(wp_remote_retrieve_body($resp),true);
    $translated=json_decode($body['candidates'][0]['content']['parts'][0]['text']??'',true);
    if(!is_array($translated)||count($translated)!==count($texts))wp_send_json_error(['message'=>'Risposta incompleta per #'.$id],400);
    foreach($translated as $value){if(!is_string($value))wp_send_json_error(['message'=>'Formato risposta non valido'],400);}
    update_post_meta($id,self::META,['hash'=>$hash,'fields'=>$fields,'translations'=>array_values($translated)]);
+   $failures=get_option('ires_ossreg_nimble_failures',[]);if(is_array($failures)&&isset($failures[$id])){unset($failures[$id]);update_option('ires_ossreg_nimble_failures',$failures,false);}
    wp_send_json_success(['done'=>false,'id'=>$id,'fields'=>count($fields)]);
   }
   wp_send_json_success(['done'=>true]);
