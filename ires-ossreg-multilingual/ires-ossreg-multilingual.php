@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.44
+ * Version: 0.4.45
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -24,6 +24,7 @@ final class IRES_OSSREG_Multilingual {
   add_action('init',[$this,'refresh_archive_rewrite'],99);
   add_action('wp',function(){if($this->enabled())$GLOBALS['ires_ossreg_nimble_frontend']=true;},1);
   add_action('template_redirect',[$this,'guard_preview'],0);
+  add_action('template_redirect',[$this,'legacy_english_redirect'],-1);
   add_action('wp',[$this,'restore_nimble_page_context'],0);
   add_action('template_redirect',function(){if($this->enabled()&&!is_feed()&&!wp_doing_ajax()&&!is_robots()&&!is_trackback())ob_start(function($html){return IRES_OSSREG_English_Links::render(IRES_OSSREG_Frontend_Translation::render($html));});},2);
   add_filter('redirect_canonical',[$this,'canonical'],10,2);
@@ -54,7 +55,7 @@ final class IRES_OSSREG_Multilingual {
   add_action('wp_ajax_ires_ossreg_ml_batch',[$this,'batch_ajax']);
  }
  function opts(){return wp_parse_args(get_option(self::OPT,[]),['api_key'=>'','model'=>'gemini-2.5-flash','public_enabled'=>false]);}
- function enabled(){return !is_admin() && (string)get_query_var('ires_ossreg_en')==='1' && ($this->opts()['public_enabled'] || current_user_can('manage_options'));}
+ function enabled(){return !is_admin() && ((string)get_query_var('ires_ossreg_en')==='1' || (isset($_GET['ossreg_lang']) && $_GET['ossreg_lang']==='en')) && ($this->opts()['public_enabled'] || current_user_can('manage_options'));}
  function restore_nimble_page_context(){
   // Nimble reads the original page context; keep the English URL and cached translations.
   if(!$this->enabled()||!is_page())return;
@@ -66,6 +67,17 @@ final class IRES_OSSREG_Multilingual {
   global $post;
   if(!($post instanceof WP_Post)||$post->ID!==$id)$post=$original;
  }
+ function legacy_english_redirect(){
+  if(is_admin()||!$this->enabled()||isset($_GET['ossreg_lang']))return;
+  $path=(string)wp_parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH);
+  $base=rtrim((string)wp_parse_url(home_url('/'),PHP_URL_PATH),'/');
+  $relative=ltrim(substr($path,strlen($base)),'/');
+  if($relative!=='en' && strpos($relative,'en/')!==0)return;
+  $relative=ltrim(substr($relative,2),'/');
+  $target=home_url('/'.$relative);
+  $query=$_GET;unset($query['ossreg_lang']);$query['ossreg_lang']='en';
+  wp_safe_redirect(add_query_arg($query,$target),302);exit;
+ }
  function guard_preview(){if(!is_admin() && (string)get_query_var('ires_ossreg_en')==='1' && !$this->opts()['public_enabled'] && !current_user_can('manage_options')){status_header(404);nocache_headers();include get_404_template();exit;}}
  function rewrite(){
   add_rewrite_rule('^en/category/(.+?)/page/([0-9]+)/?$','index.php?ires_ossreg_en=1&category_name=$matches[1]&paged=$matches[2]','top');
@@ -74,9 +86,9 @@ final class IRES_OSSREG_Multilingual {
   add_rewrite_rule('^en/(.+)/?$','index.php?ires_ossreg_en=1&pagename=$matches[1]','top');
  }
  function refresh_archive_rewrite(){
-  if(get_option('ires_ossreg_archive_rewrite_version')==='0.4.44')return;
+  if(get_option('ires_ossreg_archive_rewrite_version')==='0.4.45')return;
   flush_rewrite_rules(false);
-  update_option('ires_ossreg_archive_rewrite_version','0.4.44',false);
+  update_option('ires_ossreg_archive_rewrite_version','0.4.45',false);
  }
  function preserve_english_url($location,$status){
   $path=wp_parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH);
@@ -219,7 +231,7 @@ final class IRES_OSSREG_Multilingual {
   $relative=ltrim(substr($path,strlen($base)),'/');
   if($relative==='en'||strpos($relative,'en/')===0)$relative=ltrim(substr($relative,2),'/');
   $it=home_url('/'.$relative);
-  $en=home_url('/en/'.$relative);
+  $en=add_query_arg('ossreg_lang','en',$it);
   return [$it,$en];
  }
  function switcher(){
@@ -242,15 +254,15 @@ final class IRES_OSSREG_Multilingual {
   echo '<div class="ires-ossreg-floating">'.$this->switcher().'</div>';
   if(!$this->opts()['public_enabled'])return;
   list($it,$en)=$this->language_urls();
-  echo '<script>(function(){try{var it='.wp_json_encode($it).',en='.wp_json_encode($en).';var pref=localStorage.getItem("ires_ossreg_language");var path=location.pathname;var enPath=new URL(en,location.href).pathname;var isEnglish=path===enPath;var isItalian=path===new URL(it,location.href).pathname;document.querySelectorAll(".ires-ossreg-language a").forEach(function(a){a.addEventListener("click",function(){localStorage.setItem("ires_ossreg_language",a.lang)})});if(!isItalian||isEnglish||location.search.indexOf("preview=")!==-1)return;var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"it"];var browserLang=String(langs[0]||"it").toLowerCase();if((pref==="en"||(!pref&&browserLang.slice(0,2)!=="it"))&&location.pathname!==enPath){location.replace(en+location.search+location.hash)}}catch(e){}})();</script>';
+  echo '<script>(function(){try{var it='.wp_json_encode($it).',en='.wp_json_encode($en).';var pref=localStorage.getItem("ires_ossreg_language");var path=location.pathname;var enPath=new URL(en,location.href).pathname;var isEnglish=path===enPath;var isItalian=path===new URL(it,location.href).pathname;document.querySelectorAll(".ires-ossreg-language a").forEach(function(a){a.addEventListener("click",function(){localStorage.setItem("ires_ossreg_language",a.lang)})});if(!isItalian||isEnglish||location.search.indexOf("preview=")!==-1)return;var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"it"];var browserLang=String(langs[0]||"it").toLowerCase();if((pref==="en"||(!pref&&browserLang.slice(0,2)!=="it"))&&!new URLSearchParams(location.search).has("ossreg_lang")){location.replace(en+location.hash)}}catch(e){}})();</script>';
  }
 
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.44</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.45</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.44</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.45</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_counts=wp_count_posts('nimble_post_type');
   $nimble_total=$nimble_counts?array_sum((array)$nimble_counts):0;
