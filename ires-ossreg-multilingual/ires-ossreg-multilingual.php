@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.12
+ * Version: 0.4.13
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -151,11 +151,11 @@ final class IRES_OSSREG_Multilingual {
  }
 
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.12</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I blocchi Nimble e le librerie dinamiche richiedono ancora integrazione dedicata. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — 0.4.13</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I blocchi Nimble e le librerie dinamiche richiedono ancora integrazione dedicata. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
-  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.12</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
+  echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>0.4.13</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_ids=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids']);$nimble_pages=[];foreach($nimble_ids as $nid){if($this->nimble($nid))$nimble_pages[]=$nid;}
   echo '<h2>Diagnostica Page Builder</h2><p>Contenuti con metadati contenenti "nimble": <strong>'.count($nimble_pages).'</strong>. Questo controllo non esclude altri sistemi di archiviazione.</p>';
@@ -189,6 +189,23 @@ final class IRES_OSSREG_Multilingual {
    $type=in_array($prefix,['a','O','s','i','b','d'],true)?'Struttura PHP possibile':'Non identificato';
    echo '<p>#'.(int)$sample->ID.' | '.esc_html($format).' | '.esc_html($type).' | byte: '.strlen($raw).'</p>';
   }
+  echo '<h3>Struttura interna dei dati Nimble</h3>';
+  foreach(array_slice($builder_samples,0,8) as $sample){
+   $raw=(string)get_post_field('post_content',$sample->ID,'raw');
+   if(!is_serialized($raw))continue;
+   $tree=maybe_unserialize($raw);
+   if(!is_array($tree)){echo '<p>#'.(int)$sample->ID.' | radice: '.esc_html(gettype($tree)).'</p>';continue;}
+   $types=[];$string_count=0;$text_count=0;
+   $walk=function($node,$depth=0)use(&$walk,&$types,&$string_count,&$text_count){
+    if($depth>12)return;
+    if(is_array($node)){foreach($node as $key=>$value){$k=is_string($key)?$key:'[index]';$types[$k]=($types[$k]??0)+1;$walk($value,$depth+1);}}
+    elseif(is_string($node)){$string_count++;if(strlen(trim($node))>25)$text_count++;}
+   };
+   $walk($tree);
+   arsort($types);
+   echo '<p>#'.(int)$sample->ID.' | stringhe: '.(int)$string_count.' | stringhe oltre 25 byte: '.(int)$text_count.' | chiavi frequenti: '.esc_html(implode(', ',array_slice(array_keys($types),0,18))).'</p>';
+  }
+  echo '<p>La diagnostica non mostra valori dei campi e non salva traduzioni.</p>';
   echo '<p>Analisi di sola lettura: nessun dato modificato.</p>';
   echo '<p>Questa diagnostica mostra soltanto struttura, nomi delle chiavi e conteggi, mai contenuti testuali o credenziali.</p>';
   echo '<h2>Diagnostica</h2><p>PHP '.esc_html(PHP_VERSION).' | WordPress '.esc_html(get_bloginfo('version')).' | Gemini: '.(!empty($o['api_key'])?'chiave configurata':'chiave assente').' | Anteprima: '.(!$o['public_enabled']?'attiva':'disattivata').'</p>';
