@@ -53,6 +53,16 @@ final class IRES_OSSREG_Frontend_Translation {
     $map[$source]=$target;
    }
   }
+  foreach($ids as $id){
+   $post=get_post($id);if(!$post)continue;
+   $long=IRES_OSSREG_Nimble_Longtext::cached($post);
+   if(!$long)continue;
+   foreach($long['translated'] as $i=>$translated){
+    $source=trim(wp_strip_all_tags($long['source'][$i]??''));
+    $target=trim(wp_strip_all_tags($translated));
+    if($source!==''&&$target!==''&&$source!==$target&&!isset($map[$source]))$map[$source]=$target;
+   }
+  }
   $doc_ids=get_posts(['post_type'=>IRES_OSSREG_Dynamic_Cache::types(),'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true]);
   foreach($doc_ids as $id){
    $post=get_post($id);if(!$post)continue;
