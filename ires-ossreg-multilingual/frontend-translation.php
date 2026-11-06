@@ -112,8 +112,13 @@ final class IRES_OSSREG_Frontend_Translation {
    }
    if($blocked||trim($part)==='')continue;
    $decoded=html_entity_decode(trim($part),ENT_QUOTES|ENT_HTML5,'UTF-8');
-   if(!isset($map[$decoded]))continue;
-   $replacement=esc_html($map[$decoded]);
+   if(!isset($map[$decoded])){
+    // Translate Italian month names in complete dates, without requiring JavaScript.
+    $months=['gennaio'=>'January','febbraio'=>'February','marzo'=>'March','aprile'=>'April','maggio'=>'May','giugno'=>'June','luglio'=>'July','agosto'=>'August','settembre'=>'September','ottobre'=>'October','novembre'=>'November','dicembre'=>'December'];
+    $date=preg_replace_callback('/\\b([0-3]?[0-9])\\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\\s+([12][0-9]{3})\\b/iu',static function($m)use($months){return $m[1].' '.$months[mb_strtolower($m[2],'UTF-8')].' '.$m[3];},$decoded);
+    if($date===$decoded)continue;
+    $replacement=esc_html($date);
+   }else{$replacement=esc_html($map[$decoded]);}
    preg_match('/^\\s*/u',$part,$leading);preg_match('/\\s*$/u',$part,$trailing);
    $parts[$i]=($leading[0]??'').$replacement.($trailing[0]??'');
   }
