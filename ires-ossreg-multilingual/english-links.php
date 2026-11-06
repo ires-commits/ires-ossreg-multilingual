@@ -17,8 +17,11 @@ final class IRES_OSSREG_English_Links {
   $relative=ltrim(substr($path,strlen($base)),'/');
   if($relative===''||preg_match('~^(?:en(?:/|$)|wp-admin/|wp-content/|wp-includes/|wp-json/|feed/?$|xmlrpc\.php|wp-login\.php)~i',$relative))return $url;
   if(preg_match('~\.(?:pdf|zip|docx?|xlsx?|pptx?|png|jpe?g|gif|webp|svg|css|js|xml|json|mp4|mp3)(?:$|/)~i',$relative))return $url;
-  $new=home_url('/en/'.$relative);
-  if(isset($parts['query']))$new.='?'.$parts['query'];
+  $new=home_url('/'.$relative);
+  $query=[];
+  if(isset($parts['query']))parse_str($parts['query'],$query);
+  $query['ossreg_lang']='en';
+  $new=add_query_arg($query,$new);
   if(isset($parts['fragment']))$new.='#'.$parts['fragment'];
   return esc_url($new);
  }
