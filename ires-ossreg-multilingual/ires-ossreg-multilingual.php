@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.46
+ * Version: 0.4.47
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -74,6 +74,7 @@ final class IRES_OSSREG_Multilingual {
   $relative=ltrim(substr($path,strlen($base)),'/');
   if($relative!=='en' && strpos($relative,'en/')!==0)return;
   $relative=ltrim(substr($relative,2),'/');
+  if(preg_match('~^(?:category/|documento/)~i',$relative))return;
   $target=home_url('/'.$relative);
   $query=$_GET;unset($query['ossreg_lang']);$query['ossreg_lang']='en';
   wp_safe_redirect(add_query_arg($query,$target),302);exit;
@@ -172,7 +173,7 @@ final class IRES_OSSREG_Multilingual {
   if($post){unset($vars['pagename']);$vars['p']=$post->ID;}
   return $vars;
  }
- function path($url){$home=trailingslashit(home_url('/'));if(strpos($url,$home)!==0)return $url;return add_query_arg('ossreg_lang','en',$url);}
+ function path($url){$home=trailingslashit(home_url('/'));if(strpos($url,$home)!==0)return $url;return IRES_OSSREG_English_Links::url($url); }
  function permalink($url,$post){return $this->enabled()?$this->path($url):$url;}
  function page_permalink($url){return $this->enabled()?$this->path($url):$url;}
  function menu_link($atts,$item,$args,$depth){
@@ -231,7 +232,7 @@ final class IRES_OSSREG_Multilingual {
   $relative=ltrim(substr($path,strlen($base)),'/');
   if($relative==='en'||strpos($relative,'en/')===0)$relative=ltrim(substr($relative,2),'/');
   $it=home_url('/'.$relative);
-  $en=add_query_arg('ossreg_lang','en',$it);
+  $en=$this->path($it);
   return [$it,$en];
  }
  function switcher(){
