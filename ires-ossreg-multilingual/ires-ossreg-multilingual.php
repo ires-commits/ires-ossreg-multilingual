@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.61
+ * Version: 0.4.62
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -39,7 +39,6 @@ final class IRES_OSSREG_Multilingual {
   add_filter('page_link',[$this,'page_permalink'],10,2);
   add_filter('nav_menu_link_attributes',[$this,'menu_link'],20,4);
   add_filter('get_custom_logo',[$this,'english_custom_logo'],30);
-  add_filter('home_url',[$this,'english_logo_home_url'],30,4);
   add_filter('wp_nav_menu_objects',[$this,'menu_labels'],20,2);
   add_filter('wp_nav_menu_items',[$this,'menu_html'],25,2);
   add_filter('the_posts',[$this,'translated_posts'],20,2);
@@ -209,18 +208,10 @@ final class IRES_OSSREG_Multilingual {
  function english_custom_logo($html){
   if(!$this->enabled()||!is_string($html)||$html==='')return $html;
   $target=esc_url(add_query_arg('ossreg_lang','en',home_url('/')));
-  return preg_replace_callback('~<a\\b[^>]*>~i',static function($m)use($target){
-   if(strpos($m[0],'custom-logo-link')===false)return $m[0];
-   return preg_replace('~\\bhref\\s*=\\s*(["\\']).*?\\1~is','href="'.$target.'"',$m[0],1);
+  return preg_replace_callback('~<a\\b[^>]*>~i',static function($match)use($target){
+   if(strpos($match[0],'custom-logo-link')===false)return $match[0];
+   return preg_replace_callback('~\\bhref\\s*=\\s*"[^"]*"~i',static function()use($target){return 'href="'.$target.'"';},$match[0],1);
   },$html,1);
- }
- function english_logo_home_url($url,$path,$orig_scheme,$blog_id){
-  if(!$this->enabled()||$path!==''&&$path!=='/'||!doing_filter('home_url'))return $url;
-  // Only rewrite homepage URL generation inside the logo rendering path.
-  foreach(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,12) as $frame){
-   if(($frame['function']??'')==='get_custom_logo')return add_query_arg('ossreg_lang','en',$url);
-  }
-  return $url;
  }
  function menu_link($atts,$item,$args,$depth){
   if(!$this->enabled()||empty($atts['href']))return $atts;
