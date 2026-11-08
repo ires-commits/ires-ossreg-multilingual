@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.54
+ * Version: 0.4.55
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -286,6 +286,16 @@ final class IRES_OSSREG_Multilingual {
   echo '<h2>Diagnostica routing homepage EN</h2>';
   echo '<p>Server HTTP: <code>'.esc_html((string)($_SERVER['SERVER_SOFTWARE']??'non dichiarato')).'</code> — PHP: <code>'.esc_html(PHP_VERSION).'</code></p>';
   echo '<p>Cache WordPress: <code>'.(defined('WP_CACHE')&&WP_CACHE?'WP_CACHE attiva':'WP_CACHE non attiva o non definita').'</code>; cache drop-in: <code>'.(file_exists(WP_CONTENT_DIR.'/advanced-cache.php')?'advanced-cache.php presente':'non presente').'</code>.</p>';
+  $root=realpath(ABSPATH);
+  $docroot=!empty($_SERVER['DOCUMENT_ROOT'])?realpath((string)$_SERVER['DOCUMENT_ROOT']):false;
+  foreach(['Directory WordPress'=>($root?$root.'/en':null),'Document root'=>($docroot?$docroot.'/en':null)] as $label=>$candidate){
+   if(!$candidate)continue;
+   $exists=is_dir($candidate);
+   echo '<p>'.esc_html($label).' — directory fisica <code>/en</code>: <strong>'.($exists?'PRESENTE':'assente').'</strong>';
+   if($exists)echo ' (file index: '.(is_file($candidate.'/index.php')?'index.php ':'').(is_file($candidate.'/index.html')?'index.html':'').')';
+   echo '</p>';
+  }
+  echo '<p>Versione diagnostica in esecuzione: <code>'.esc_html($this->plugin_version()).'</code></p>';
   $url=wp_nonce_url(add_query_arg('ires_ossreg_probe','1',admin_url('tools.php?page=ires-ossreg-ml')),'ires_ossreg_probe');
   echo '<p><a class="button button-secondary" href="'.esc_url($url).'">Esegui test HTTP homepage EN</a></p>';
   if(!isset($_GET['ires_ossreg_probe'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce']??'')),'ires_ossreg_probe'))return;
