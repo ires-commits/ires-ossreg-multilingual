@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.59
+ * Version: 0.4.60
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -293,6 +293,8 @@ final class IRES_OSSREG_Multilingual {
   // A separate, small DOM pass for third-party widgets (including AJAX and carousel slides).
   $pairs=[
    'Programma (altro...)'=>'Programme (more...)',
+   '(altro...)'=>'(more...)',
+   '(altro…)'=>'(more…)',
    'Programma (altro…)'=>'Programme (more…)',
    'Scarica'=>'Download','Anteprima'=>'Preview',
    'Informare gli studenti sulla borsa di studio: quale effetto sul passaggio scuola-università?'=>'Informing students about scholarships: what effect on the school-to-university transition?',
@@ -310,7 +312,7 @@ final class IRES_OSSREG_Multilingual {
   echo '<div class="ires-ossreg-floating">'.$this->switcher().'</div>';
   if(!$this->opts()['public_enabled'])return;
   list($it,$en)=$this->language_urls();
-  echo '<script>(function(){try{var it='.wp_json_encode($it).',en='.wp_json_encode($en).';var pref=localStorage.getItem("ires_ossreg_language");var path=location.pathname;var enPath=new URL(en,location.href).pathname;var isEnglish=path===enPath;var isItalian=path===new URL(it,location.href).pathname;document.querySelectorAll(".ires-ossreg-language a").forEach(function(a){a.addEventListener("click",function(){localStorage.setItem("ires_ossreg_language",a.lang)})});if(!isItalian||isEnglish||location.search.indexOf("preview=")!==-1)return;var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"it"];var browserLang=String(langs[0]||"it").toLowerCase();if((pref==="en"||(!pref&&browserLang.slice(0,2)!=="it"))&&!new URLSearchParams(location.search).has("ossreg_lang")){location.replace(en+location.hash)}}catch(e){}})();</script>';
+  echo '<script>(function(){try{var it='.wp_json_encode($it).',en='.wp_json_encode($en).';var pref=localStorage.getItem("ires_ossreg_language");var path=location.pathname;var enPath=new URL(en,location.href).pathname;var enUrl=new URL(en,location.href);var isEnglish=path===enPath&&(enUrl.searchParams.has("ossreg_lang")?new URLSearchParams(location.search).get("ossreg_lang")==="en":true);var isItalian=path===new URL(it,location.href).pathname&&!new URLSearchParams(location.search).has("ossreg_lang");document.querySelectorAll(".ires-ossreg-language a").forEach(function(a){a.addEventListener("click",function(){localStorage.setItem("ires_ossreg_language",a.lang)})});if(!isItalian||isEnglish||location.search.indexOf("preview=")!==-1)return;var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"it"];var browserLang=String(langs[0]||"it").toLowerCase();if((pref==="en"||(!pref&&browserLang.slice(0,2)!=="it"))&&!new URLSearchParams(location.search).has("ossreg_lang")){location.replace(en+location.hash)}}catch(e){}})();</script>';
  }
 
  function routing_diagnostics(){
