@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.64
+ * Version: 0.4.65
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -44,6 +44,7 @@ final class IRES_OSSREG_Multilingual {
   add_filter('the_posts',[$this,'translated_posts'],20,2);
   add_filter('the_content',[$this,'content'],50);
   add_filter('the_title',[$this,'title'],50,2);
+  add_filter('render_block',[$this,'translate_document_card_html'],50,2);
   add_filter('document_title_parts',[$this,'document_title']);
   add_action('wp_head',[$this,'hreflang']);
   add_shortcode('ires_ossreg_language_switcher',[$this,'switcher']);
@@ -270,6 +271,10 @@ final class IRES_OSSREG_Multilingual {
   if(!is_singular()||get_queried_object_id()!==(int)$id)return $title;
   $t=$this->item($id);
   return $t?sanitize_text_field($t['title']):$title;
+ }
+ function translate_document_card_html($content,$block){
+  if(!$this->enabled()||!is_string($content)||$content===''||stripos($content,'dlp_document')===false)return $content;
+  return IRES_OSSREG_Frontend_Translation::render($content);
  }
  function document_title($parts){if($this->enabled()&&is_singular()){ $t=$this->item(get_queried_object_id());if($t)$parts['title']=$t['title'];}return $parts;}
  function hreflang(){if(!$this->opts()['public_enabled']||!is_singular())return;$url=get_permalink(get_queried_object_id());if(!$url)return;$it=str_replace(home_url('/en/'),home_url('/'),$url);$en=$this->path($it);echo '<link rel="alternate" hreflang="it" href="'.esc_url($it).'" />' . "\n";echo '<link rel="alternate" hreflang="en" href="'.esc_url($en).'" />' . "\n";}
