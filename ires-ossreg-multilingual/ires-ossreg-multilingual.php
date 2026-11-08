@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.63
+ * Version: 0.4.64
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -350,6 +350,23 @@ final class IRES_OSSREG_Multilingual {
    echo '</p>';
   }
   echo '<p>Versione diagnostica in esecuzione: <code>'.esc_html($this->plugin_version()).'</code></p>';
+  echo '<h3>Verifica cache titoli Sistema universitario</h3>';
+  $samples=['Gli iscritti stranieri negli atenei torinesi','Il fabbisogno formativo di professionisti sanitari in Piemonte','10 Numeri sul Sistema Universitario in Piemonte'];
+  echo '<table class="widefat striped" style="max-width:1000px"><thead><tr><th>Documento</th><th>ID</th><th>Cache valida</th><th>Titolo EN in cache</th></tr></thead><tbody>';
+  foreach($samples as $sample){
+   $ids=get_posts(['post_type'=>'dlp_document','post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true,'s'=>$sample]);
+   $matched=false;
+   foreach($ids as $id){
+    $post=get_post($id);
+    if(!$post||mb_stripos($post->post_title,$sample)===false)continue;
+    $matched=true;
+    $cached=IRES_OSSREG_Dynamic_Cache::cached($post);
+    echo '<tr><td>'.esc_html($post->post_title).'</td><td>'.(int)$id.'</td><td>'.($cached?'SI':'NO').'</td><td>'.esc_html($cached[0]??'—').'</td></tr>';
+   }
+   if(!$matched)echo '<tr><td>'.esc_html($sample).'</td><td colspan="3">Non trovato come dlp_document</td></tr>';
+  }
+  echo '</tbody></table>';
+
   $url=wp_nonce_url(add_query_arg('ires_ossreg_probe','1',admin_url('tools.php?page=ires-ossreg-ml')),'ires_ossreg_probe');
   echo '<p><a class="button button-secondary" href="'.esc_url($url).'">Esegui test HTTP homepage EN</a></p>';
   if(!isset($_GET['ires_ossreg_probe'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce']??'')),'ires_ossreg_probe'))return;
