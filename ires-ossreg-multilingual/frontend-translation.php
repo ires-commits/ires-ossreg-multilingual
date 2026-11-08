@@ -9,6 +9,13 @@ final class IRES_OSSREG_Frontend_Translation {
    'All’Università con la borsa di studio, ma non in pochi'=>'Attending university with a scholarship: opportunities and challenges',
    'Diritto allo studio scolastico: questo sconosciuto'=>'School student support: the overlooked right',
    'Informare gli studenti sul diritto allo studio aumenta le iscrizioni'=>'Informing students about student support increases enrolment',
+   // Nimble Builder: postgraduate study page, including accordion and image captions.
+   'Dopo il conseguimento della laurea è possibile proseguire gli studi iscrivendosi ad un corso post-laurea.'=>'After graduating, students can continue their education by enrolling in a postgraduate programme.',
+   'Università di Torino'=>'University of Turin',
+   'Politecnico di Torino'=>'Polytechnic University of Turin',
+   'Università del Piemonte Orientale'=>'University of Eastern Piedmont',
+   'Università di Scienze Gastronomiche'=>'University of Gastronomic Sciences',
+   'Corsi universitari post-laurea'=>'Postgraduate university programmes',
    'Scarica'=>'Download',
    'Anteprima'=>'Preview',
 
