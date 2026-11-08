@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.51
+ * Version: 0.4.52
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -20,6 +20,7 @@ final class IRES_OSSREG_Multilingual {
  const META='_ires_ossreg_en_translation';
  const SOURCE='_ires_ossreg_en_source_hash';
  function __construct(){
+  add_action('init',[$this,'redirect_english_home'],0);
   add_action('init',[$this,'rewrite']);
   add_action('init',[$this,'refresh_archive_rewrite'],99);
   add_action('wp',function(){if($this->enabled())$GLOBALS['ires_ossreg_nimble_frontend']=true;},1);
@@ -67,6 +68,19 @@ final class IRES_OSSREG_Multilingual {
   // Do not replace the queried object: Nimble needs the original published page identity.
   global $post;
   if(!($post instanceof WP_Post)||$post->ID!==$id)$post=$original;
+ }
+ function redirect_english_home(){
+  if(is_admin()||wp_doing_ajax()||($_SERVER['REQUEST_METHOD']??'GET')!=='GET')return;
+  if(!$this->opts()['public_enabled']&&!current_user_can('manage_options'))return;
+  $path=(string)wp_parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH);
+  $base=rtrim((string)wp_parse_url(home_url('/'),PHP_URL_PATH),'/');
+  if(!in_array($path,[$base.'/en',$base.'/en/'],true))return;
+  $query=wp_unslash($_GET);
+  unset($query['ossreg_lang']);
+  $query['ossreg_lang']='en';
+  nocache_headers();
+  wp_safe_redirect(add_query_arg($query,home_url('/')),302,'IRES OSSREG Multilingual');
+  exit;
  }
  function legacy_english_redirect(){
   if(is_admin()||!$this->enabled()||isset($_GET['ossreg_lang']))return;
