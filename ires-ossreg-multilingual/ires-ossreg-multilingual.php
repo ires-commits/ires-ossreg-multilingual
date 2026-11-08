@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.52
+ * Version: 0.4.53
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -273,8 +273,31 @@ final class IRES_OSSREG_Multilingual {
   echo '<script>(function(){try{var it='.wp_json_encode($it).',en='.wp_json_encode($en).';var pref=localStorage.getItem("ires_ossreg_language");var path=location.pathname;var enPath=new URL(en,location.href).pathname;var isEnglish=path===enPath;var isItalian=path===new URL(it,location.href).pathname;document.querySelectorAll(".ires-ossreg-language a").forEach(function(a){a.addEventListener("click",function(){localStorage.setItem("ires_ossreg_language",a.lang)})});if(!isItalian||isEnglish||location.search.indexOf("preview=")!==-1)return;var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"it"];var browserLang=String(langs[0]||"it").toLowerCase();if((pref==="en"||(!pref&&browserLang.slice(0,2)!=="it"))&&!new URLSearchParams(location.search).has("ossreg_lang")){location.replace(en+location.hash)}}catch(e){}})();</script>';
  }
 
+ function routing_diagnostics(){
+  if(!current_user_can('manage_options'))return;
+  echo '<h2>Diagnostica routing homepage EN</h2>';
+  echo '<p>Server HTTP: <code>'.esc_html((string)($_SERVER['SERVER_SOFTWARE']??'non dichiarato')).'</code> — PHP: <code>'.esc_html(PHP_VERSION).'</code></p>';
+  echo '<p>Cache WordPress: <code>'.(defined('WP_CACHE')&&WP_CACHE?'WP_CACHE attiva':'WP_CACHE non attiva o non definita').'</code>; cache drop-in: <code>'.(file_exists(WP_CONTENT_DIR.'/advanced-cache.php')?'advanced-cache.php presente':'non presente').'</code>.</p>';
+  $url=wp_nonce_url(add_query_arg('ires_ossreg_probe','1',admin_url('tools.php?page=ires-ossreg-ml')),'ires_ossreg_probe');
+  echo '<p><a class="button button-secondary" href="'.esc_url($url).'">Esegui test HTTP homepage EN</a></p>';
+  if(!isset($_GET['ires_ossreg_probe'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce']??'')),'ires_ossreg_probe'))return;
+  echo '<table class="widefat striped" style="max-width:900px"><thead><tr><th>Indirizzo</th><th>Risultato</th><th>Redirect</th><th>Cache / server</th></tr></thead><tbody>';
+  foreach(['/en/?ossreg_probe='.time(),'/?ossreg_lang=en&ossreg_probe='.time()] as $suffix){
+   $target=home_url($suffix);
+   $response=wp_remote_get($target,['timeout'=>6,'redirection'=>0,'sslverify'=>true,'headers'=>['Cache-Control'=>'no-cache','User-Agent'=>'OSSREG-Diagnostic/1.0']]);
+   if(is_wp_error($response)){$status=$response->get_error_message();$location='';$headers='';}
+   else{
+    $status=(string)wp_remote_retrieve_response_code($response).' — '.strlen((string)wp_remote_retrieve_body($response)).' byte';
+    $location=(string)wp_remote_retrieve_header($response,'location');
+    $parts=[];foreach(['server','x-cache','cf-cache-status','age','cache-control'] as $h){$v=wp_remote_retrieve_header($response,$h);if($v)$parts[]=$h.': '.$v;}
+    $headers=implode(' | ',$parts);
+   }
+   echo '<tr><td><code>'.esc_html($suffix).'</code></td><td>'.esc_html($status).'</td><td>'.esc_html($location).'</td><td>'.esc_html($headers).'</td></tr>';
+  }
+  echo '</tbody></table><p><em>Il test viene eseguito dal server WordPress: una cache CDN potrebbe rispondere diversamente ai visitatori esterni.</em></p>';
+ }
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
- function admin(){if(!current_user_can('manage_options'))return;$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — '.esc_html($this->plugin_version()).'</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
+ function admin(){if(!current_user_can('manage_options'))return;$this->routing_diagnostics();$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — '.esc_html($this->plugin_version()).'</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
