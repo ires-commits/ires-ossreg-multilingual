@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.57
+ * Version: 0.4.58
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -327,6 +327,20 @@ final class IRES_OSSREG_Multilingual {
    }
    echo '<tr><td><code>'.esc_html($suffix).'</code></td><td>'.esc_html($status).'</td><td>'.esc_html($location).'</td><td>'.esc_html($headers).'</td></tr>';
   }
+  echo '<h3>Verifica traduzione componenti</h3><table class="widefat striped" style="max-width:900px"><thead><tr><th>Pagina</th><th>Script traduzioni</th><th>Italiano nell’HTML</th><th>Inglese nell’HTML</th></tr></thead><tbody>';
+  foreach(['Homepage'=>'/?ossreg_lang=en','Pubblicazioni'=>'/pubblicazioni/?ossreg_lang=en'] as $label=>$suffix){
+   $response=wp_remote_get(home_url($suffix),['timeout'=>12,'headers'=>['Cache-Control'=>'no-cache']]);
+   if(is_wp_error($response)){$script='Errore HTTP';$italian=$response->get_error_message();$english='';}
+   else{
+    $html=(string)wp_remote_retrieve_body($response);
+    $script=strpos($html,'id="ires-ossreg-dynamic-translations"')!==false?'PRESENTE':'ASSENTE';
+    $samples=$label==='Homepage'?['Programma (altro','Programme (more']:['Gli esiti occupazionali dei laureati','Graduate employment outcomes'];
+    $italian=(string)substr_count($html,$samples[0]);
+    $english=(string)substr_count($html,$samples[1]);
+   }
+   echo '<tr><td>'.esc_html($label).'</td><td>'.esc_html($script).'</td><td>'.esc_html($italian).'</td><td>'.esc_html($english).'</td></tr>';
+  }
+  echo '</tbody></table><p><em>I conteggi includono anche le stringhe del dizionario JavaScript, non soltanto quelle visibili.</em></p>';
   echo '</tbody></table><p><em>Il test viene eseguito dal server WordPress: una cache CDN potrebbe rispondere diversamente ai visitatori esterni.</em></p>';
  }
  function admin_menu(){add_management_page('OSSREG Multilingual','OSSREG Multilingual','manage_options','ires-ossreg-ml',[$this,'admin']);}
