@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.62
+ * Version: 0.4.63
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -237,7 +237,7 @@ final class IRES_OSSREG_Multilingual {
  }
  function item($id){$t=get_post_meta($id,self::META,true);$hash=get_post_meta($id,self::SOURCE,true);$p=get_post($id);if(!$p||!is_array($t)||!isset($t['title'],$t['content']))return null;$current=hash('sha256',$p->post_title."\n".$p->post_content);return hash_equals((string)$hash,$current)?$t:null;}
  function translated_posts($posts,$query){
-  if(!$query->is_main_query()||!$this->enabled()||empty($posts))return $posts;
+  if(!$this->enabled()||empty($posts))return $posts;
   // Translate archive cards as well as individual pages. Never alter stored Italian posts.
   foreach($posts as $i=>$post){
    if(!($post instanceof WP_Post))continue;
@@ -259,7 +259,18 @@ final class IRES_OSSREG_Multilingual {
   return $posts;
  }
  function content($content){if(!$this->enabled()||!is_singular()||!in_the_loop()||!is_main_query())return $content;$p=get_post();$t=$p?$this->item($p->ID):null;return $t?wp_kses_post($t['content']):$content;}
- function title($title,$id=0){if(!$this->enabled()||!$id||!is_singular()||get_queried_object_id()!=(int)$id)return $title;$t=$this->item($id);return $t?sanitize_text_field($t['title']):$title;}
+ function title($title,$id=0){
+  if(!$this->enabled()||!$id)return $title;
+  $post=get_post((int)$id);
+  if(!$post)return $title;
+  if($post->post_type==='dlp_document'){
+   $cached=IRES_OSSREG_Dynamic_Cache::cached($post);
+   return $cached&&!empty($cached[0])?sanitize_text_field($cached[0]):$title;
+  }
+  if(!is_singular()||get_queried_object_id()!==(int)$id)return $title;
+  $t=$this->item($id);
+  return $t?sanitize_text_field($t['title']):$title;
+ }
  function document_title($parts){if($this->enabled()&&is_singular()){ $t=$this->item(get_queried_object_id());if($t)$parts['title']=$t['title'];}return $parts;}
  function hreflang(){if(!$this->opts()['public_enabled']||!is_singular())return;$url=get_permalink(get_queried_object_id());if(!$url)return;$it=str_replace(home_url('/en/'),home_url('/'),$url);$en=$this->path($it);echo '<link rel="alternate" hreflang="it" href="'.esc_url($it).'" />' . "\n";echo '<link rel="alternate" hreflang="en" href="'.esc_url($en).'" />' . "\n";}
  function language_urls(){
