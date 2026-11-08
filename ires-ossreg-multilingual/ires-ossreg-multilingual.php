@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.58
+ * Version: 0.4.59
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -48,6 +48,7 @@ final class IRES_OSSREG_Multilingual {
   add_shortcode('ires_ossreg_language_switcher',[$this,'switcher']);
   add_action('wp_footer',[$this,'floating_switcher'],100);
   add_action('wp_footer',[$this,'dynamic_catalog_translation'],120);
+  add_action('wp_footer',[$this,'translation_widget_fallback'],121);
   add_action('admin_menu',[$this,'admin_menu']);
   add_action('admin_post_ires_ossreg_ml_test',[$this,'test_api']);
   add_action('admin_post_ires_ossreg_ml_github_update',[$this,'github_update']);
@@ -286,6 +287,22 @@ final class IRES_OSSREG_Multilingual {
   $map['Informare gli studenti sul diritto allo studio aumenta le iscrizioni all’università?']='Does informing students about student support increase university enrolment?';
 
   echo '<script id="ires-ossreg-dynamic-translations">(function(){const translations='.wp_json_encode($map,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';const excluded="SCRIPT,STYLE,TEXTAREA,INPUT,OPTION,SELECT,CODE,PRE,SVG,NOSCRIPT";const ignored=new Set(excluded.split(","));const months={"Gennaio":"January","Febbraio":"February","Marzo":"March","Aprile":"April","Maggio":"May","Giugno":"June","Luglio":"July","Agosto":"August","Settembre":"September","Ottobre":"October","Novembre":"November","Dicembre":"December"};function translate(text){const t=text.trim();if(!t)return null;if(Object.prototype.hasOwnProperty.call(translations,t))return translations[t];const normalized=t.replace(/\\s+/g," ").replace(/\\u00a0/g," ");if(Object.prototype.hasOwnProperty.call(translations,normalized))return translations[normalized];let result=t;for(const [it,en] of Object.entries(months))result=result.replace(new RegExp("(^|[^A-Za-zÀ-ÿ])("+it+")(?=$|[^A-Za-zÀ-ÿ])","gi"),function(match,prefix){return prefix+en;}));result=result.replace(/^(posti|utenza|Periodo di chiusura)(\\s*:)/i,function(_,label,colon){return ({"posti":"beds","utenza":"Gender","periodo di chiusura":"Closure period"})[label.toLowerCase()]+colon});return result!==t?result:null;}function apply(root){if(!root||root.nodeType!==1)return;if(root.closest&&root.closest("#wpadminbar, .ires-ossreg-language, #ires-ossreg-dynamic-translations"))return;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode()){const node=walker.currentNode;const parent=node.parentElement;if(!parent||ignored.has(parent.tagName)||parent.closest("#wpadminbar,script,style,textarea,code,pre,svg,noscript,[contenteditable=true]"))continue;nodes.push(node);}for(const node of nodes){const value=node.nodeValue;const replacement=translate(value);if(replacement!==null){const start=value.match(/^\\s*/u)[0],end=value.match(/\\s*$/u)[0];node.nodeValue=start+replacement+end;}}}let queued=false;const observer=new MutationObserver(function(){if(queued)return;queued=true;requestAnimationFrame(function(){queued=false;apply(document.body);});});function start(){if(!document.body)return;apply(document.body);observer.observe(document.body,{childList:true,subtree:true,characterData:true});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();})();</script>';
+ }
+ function translation_widget_fallback(){
+  if(!$this->enabled())return;
+  // A separate, small DOM pass for third-party widgets (including AJAX and carousel slides).
+  $pairs=[
+   'Programma (altro...)'=>'Programme (more...)',
+   'Programma (altro…)'=>'Programme (more…)',
+   'Scarica'=>'Download','Anteprima'=>'Preview',
+   'Informare gli studenti sulla borsa di studio: quale effetto sul passaggio scuola-università?'=>'Informing students about scholarships: what effect on the school-to-university transition?',
+   'Gli esiti occupazionali dei laureati'=>'Graduate employment outcomes',
+   'Il diritto allo studio universitario in Italia: un quadro attuativo disuniforme'=>'The right to higher education in Italy: an uneven implementation landscape',
+   'All’università con la borsa di studio, ma lo sanno in pochi'=>'Going to university with a scholarship: too few students know about it',
+   'Diritto allo studio scolastico: questo sconosciuto'=>'School student support: the overlooked right',
+   'Informare gli studenti sul diritto allo studio aumenta le iscrizioni all’università?'=>'Does informing students about student support increase university enrolment?',
+  ];
+  echo '<script id="ires-ossreg-widget-fallback">(function(){try{const pairs='.wp_json_encode($pairs,JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';const entries=Object.entries(pairs).sort((a,b)=>b[0].length-a[0].length);const months={Gennaio:"January",Febbraio:"February",Marzo:"March",Aprile:"April",Maggio:"May",Giugno:"June",Luglio:"July",Agosto:"August",Settembre:"September",Ottobre:"October",Novembre:"November",Dicembre:"December"};function fix(node){if(!node||node.nodeType!==3||!node.parentElement||node.parentElement.closest("script,style,textarea,code,pre,svg,noscript,#wpadminbar,.ires-ossreg-language"))return;let old=node.nodeValue;let next=old;for(const [it,en] of entries){if(next.includes(it))next=next.split(it).join(en)}next=next.replace(/\\b(Gennaio|Febbraio|Marzo|Aprile|Maggio|Giugno|Luglio|Agosto|Settembre|Ottobre|Novembre|Dicembre)\\b/g,m=>months[m]||m);if(next!==old)node.nodeValue=next}function scan(root){if(!root)return;if(root.nodeType===3){fix(root);return}if(root.nodeType!==1||root.matches("script,style,textarea,code,pre,svg,noscript"))return;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(fix)}let busy=false;function start(){scan(document.body);new MutationObserver(function(records){if(busy)return;busy=true;requestAnimationFrame(function(){busy=false;for(const record of records){if(record.type==="characterData")fix(record.target);else for(const node of record.addedNodes)scan(node)}})}).observe(document.body,{subtree:true,childList:true,characterData:true});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();}catch(e){console.warn("OSSREG widget translations",e)}})();</script>';
  }
  function floating_switcher(){
   if(is_admin()||(!$this->opts()['public_enabled']&&!current_user_can('manage_options')))return;
