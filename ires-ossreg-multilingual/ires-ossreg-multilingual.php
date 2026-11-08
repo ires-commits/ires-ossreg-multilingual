@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.53
+ * Version: 0.4.54
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -20,6 +20,7 @@ final class IRES_OSSREG_Multilingual {
  const META='_ires_ossreg_en_translation';
  const SOURCE='_ires_ossreg_en_source_hash';
  function __construct(){
+  add_action('plugins_loaded',[$this,'mark_english_home_reached'],0);
   add_action('init',[$this,'redirect_english_home'],0);
   add_action('init',[$this,'rewrite']);
   add_action('init',[$this,'refresh_archive_rewrite'],99);
@@ -68,6 +69,13 @@ final class IRES_OSSREG_Multilingual {
   // Do not replace the queried object: Nimble needs the original published page identity.
   global $post;
   if(!($post instanceof WP_Post)||$post->ID!==$id)$post=$original;
+ }
+ function mark_english_home_reached(){
+  if(is_admin())return;
+  $path=(string)wp_parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH);
+  $base=rtrim((string)wp_parse_url(home_url('/'),PHP_URL_PATH),'/');
+  if(!in_array($path,[$base.'/en',$base.'/en/'],true))return;
+  header('X-IRES-OSSREG-Reached: plugins-loaded',true);
  }
  function redirect_english_home(){
   if(is_admin()||wp_doing_ajax()||($_SERVER['REQUEST_METHOD']??'GET')!=='GET')return;
@@ -281,7 +289,7 @@ final class IRES_OSSREG_Multilingual {
   $url=wp_nonce_url(add_query_arg('ires_ossreg_probe','1',admin_url('tools.php?page=ires-ossreg-ml')),'ires_ossreg_probe');
   echo '<p><a class="button button-secondary" href="'.esc_url($url).'">Esegui test HTTP homepage EN</a></p>';
   if(!isset($_GET['ires_ossreg_probe'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce']??'')),'ires_ossreg_probe'))return;
-  echo '<table class="widefat striped" style="max-width:900px"><thead><tr><th>Indirizzo</th><th>Risultato</th><th>Redirect</th><th>Cache / server</th></tr></thead><tbody>';
+  echo '<table class="widefat striped" style="max-width:900px"><thead><tr><th>Indirizzo</th><th>Risultato</th><th>Redirect</th><th>Cache / server / WordPress</th></tr></thead><tbody>';
   foreach(['/en/?ossreg_probe='.time(),'/?ossreg_lang=en&ossreg_probe='.time()] as $suffix){
    $target=home_url($suffix);
    $response=wp_remote_get($target,['timeout'=>6,'redirection'=>0,'sslverify'=>true,'headers'=>['Cache-Control'=>'no-cache','User-Agent'=>'OSSREG-Diagnostic/1.0']]);
@@ -289,7 +297,7 @@ final class IRES_OSSREG_Multilingual {
    else{
     $status=(string)wp_remote_retrieve_response_code($response).' — '.strlen((string)wp_remote_retrieve_body($response)).' byte';
     $location=(string)wp_remote_retrieve_header($response,'location');
-    $parts=[];foreach(['server','x-cache','cf-cache-status','age','cache-control'] as $h){$v=wp_remote_retrieve_header($response,$h);if($v)$parts[]=$h.': '.$v;}
+    $parts=[];foreach(['server','x-cache','cf-cache-status','age','cache-control','x-ires-ossreg-reached'] as $h){$v=wp_remote_retrieve_header($response,$h);if($v)$parts[]=$h.': '.$v;}
     $headers=implode(' | ',$parts);
    }
    echo '<tr><td><code>'.esc_html($suffix).'</code></td><td>'.esc_html($status).'</td><td>'.esc_html($location).'</td><td>'.esc_html($headers).'</td></tr>';
