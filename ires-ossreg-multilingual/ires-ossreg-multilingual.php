@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.55
+ * Version: 0.4.56
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -121,6 +121,10 @@ final class IRES_OSSREG_Multilingual {
   $target_path=wp_parse_url($location,PHP_URL_PATH);
   if(!is_string($target_path))return $location;
   $expected=substr($path,strlen($prefix)+3);
+  // A language query on the home URL is a real redirect, not a canonical loop.
+  $target_query=(string)wp_parse_url($location,PHP_URL_QUERY);
+  parse_str($target_query,$target_args);
+  if(isset($target_args['ossreg_lang'])&&$target_args['ossreg_lang']==='en')return $location;
   if(trim($expected,'/')===trim(substr($target_path,strlen($prefix)),'/'))return false;
   return $location;
  }
