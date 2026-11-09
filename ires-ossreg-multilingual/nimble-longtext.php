@@ -28,6 +28,25 @@ final class IRES_OSSREG_Nimble_Longtext {
   $c=get_post_meta($p->ID,self::META,true);
   return is_array($c)&&($c['schema']??0)===self::SCHEMA&&($c['hash']??'')===hash('sha256',$p->post_content)&&isset($c['source'],$c['translated'])&&is_array($c['source'])&&is_array($c['translated'])&&count($c['source'])===count($c['translated'])?$c:null;
  }
+ static function progress(){
+  if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
+  check_ajax_referer('ires_ossreg_long_batch');
+  $ids=get_posts(['post_type'=>['nimble_post_type','nimble_section','nimble_template'],'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','orderby'=>'ID','order'=>'ASC','suppress_filters'=>true]);
+  $fail=get_option('ires_ossreg_long_failures',[]);if(!is_array($fail))$fail=[];
+  $total=0;$translated=0;$records=0;$pending_records=0;$deferred=0;
+  foreach($ids as $id){
+   $p=get_post($id);if(!$p||!is_serialized($p->post_content))continue;
+   $tree=maybe_unserialize($p->post_content);if(!is_array($tree))continue;
+   $texts=self::fields($tree);$n=count($texts);if(!$n)continue;
+   $records++;$total+=$n;
+   $cache=get_post_meta($id,self::META,true);
+   $valid=is_array($cache)&&($cache['schema']??0)===self::SCHEMA&&($cache['hash']??'')===hash('sha256',$p->post_content)&&($cache['source']??[])===$texts&&is_array($cache['translated']??null);
+   $done=$valid?min($n,count($cache['translated'])):0;
+   $translated+=$done;
+   if($done<$n){$pending_records++;if(isset($fail[$id])&&time()-(int)$fail[$id]<1800)$deferred++;}
+  }
+  wp_send_json_success(['total'=>$total,'translated'=>$translated,'remaining'=>max(0,$total-$translated),'percent'=>$total?round($translated*100/$total,1):100,'records'=>$records,'pending_records'=>$pending_records,'deferred'=>$deferred]);
+ }
  static function batch(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
   check_ajax_referer('ires_ossreg_long_batch');
@@ -62,3 +81,5 @@ final class IRES_OSSREG_Nimble_Longtext {
  }
 }
 add_action('wp_ajax_ires_ossreg_long_batch',['IRES_OSSREG_Nimble_Longtext','batch']);
+
+add_action('wp_ajax_ires_ossreg_long_progress',['IRES_OSSREG_Nimble_Longtext','progress']);
