@@ -96,6 +96,20 @@ final class IRES_OSSREG_Frontend_Translation {
    $long=IRES_OSSREG_Nimble_Longtext::cached($post);
    if(!$long)continue;
    foreach($long['translated'] as $i=>$translated){
+    // Long Nimble HTML fields may contain many accordion paragraphs. Map each
+    // matching block independently rather than only the complete HTML field.
+    $original_html=(string)($long['source'][$i]??'');
+    if(preg_match('/<(?:p|li|h[1-6])\\b/i',$original_html)){
+     preg_match_all('~<(p|li|h[1-6])\\b[^>]*>(.*?)</\\1>~is',$original_html,$source_blocks,PREG_SET_ORDER);
+     preg_match_all('~<(p|li|h[1-6])\\b[^>]*>(.*?)</\\1>~is',(string)$translated,$target_blocks,PREG_SET_ORDER);
+     if(count($source_blocks)===count($target_blocks)){
+      foreach($source_blocks as $j=>$block){
+       $source_block=trim(html_entity_decode(wp_strip_all_tags($block[2]),ENT_QUOTES|ENT_HTML5,'UTF-8'));
+       $target_block=trim(html_entity_decode(wp_strip_all_tags($target_blocks[$j][2]),ENT_QUOTES|ENT_HTML5,'UTF-8'));
+       if($source_block!==''&&$target_block!==''&&$source_block!==$target_block&&!isset($map[$source_block]))$map[$source_block]=$target_block;
+      }
+     }
+    }
     $source=trim(wp_strip_all_tags($long['source'][$i]??''));
     $target=trim(wp_strip_all_tags($translated));
     if($source!==''&&$target!==''&&$source!==$target&&!isset($map[$source]))$map[$source]=$target;
