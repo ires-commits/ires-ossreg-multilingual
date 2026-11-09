@@ -16,6 +16,9 @@ final class IRES_OSSREG_Frontend_Translation {
    'Università del Piemonte Orientale'=>'University of Eastern Piedmont',
    'Università di Scienze Gastronomiche'=>'University of Gastronomic Sciences',
    'Corsi universitari post-laurea'=>'Postgraduate university programmes',
+   'Aperto tutto l’anno'=>'Open all year round',
+   'Aperto tutto l\'anno'=>'Open all year round',
+   'La tariffa comprende: servizio di portineria 24 ore, utenze sino ad un massimo di € 120 a persona per gli appartamenti con cucina e di € 20 a persona per le camere, internet Wi-Fi, TV, cassaforte in camera, utilizzo gratuito spazi polivalenti.'=>'The fee includes a 24-hour reception service, utilities up to €120 per person for apartments with a kitchen and €20 per person for rooms, Wi-Fi, TV, an in-room safe, and free use of multipurpose spaces.',
    'Scarica'=>'Download',
    'Anteprima'=>'Preview',
 
