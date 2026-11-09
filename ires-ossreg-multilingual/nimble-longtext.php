@@ -24,6 +24,27 @@ final class IRES_OSSREG_Nimble_Longtext {
   };
   $walk($node);return array_values($out);
  }
+ static function reusable($texts,$existing){
+  $lookup=[];
+  if(!is_array($existing))return $lookup;
+  $sources=$existing['source']??[];$targets=$existing['translated']??[];
+  if(!is_array($sources)||!is_array($targets))return $lookup;
+  foreach($targets as $i=>$target){
+   if(!is_string($target)||!isset($sources[$i])||!is_string($sources[$i]))continue;
+   $source=trim(preg_replace('/\\s+/u',' ',html_entity_decode(wp_strip_all_tags($sources[$i]),ENT_QUOTES|ENT_HTML5,'UTF-8')));
+   if($source!==''&&$source!==$target)$lookup[$source]=$target;
+   if(str_contains($sources[$i],'<')&&str_contains($target,'<')){
+    preg_match_all('~<(p|li|h[1-6])\\b[^>]*>(.*?)</\\1>~is',$sources[$i],$a,PREG_SET_ORDER);
+    preg_match_all('~<(p|li|h[1-6])\\b[^>]*>(.*?)</\\1>~is',$target,$b,PREG_SET_ORDER);
+    if(count($a)===count($b))foreach($a as $j=>$block){
+     $key=trim(preg_replace('/\\s+/u',' ',html_entity_decode(wp_strip_all_tags($block[2]),ENT_QUOTES|ENT_HTML5,'UTF-8')));
+     $value=trim(wp_strip_all_tags($b[$j][2]));
+     if($key!==''&&$value!=='')$lookup[$key]=$value;
+    }
+   }
+  }
+  return $lookup;
+ }
  static function cached($p){
   $c=get_post_meta($p->ID,self::META,true);
   return is_array($c)&&($c['schema']??0)===self::SCHEMA&&($c['hash']??'')===hash('sha256',$p->post_content)&&isset($c['source'],$c['translated'])&&is_array($c['source'])&&is_array($c['translated'])&&count($c['source'])===count($c['translated'])?$c:null;
@@ -63,8 +84,8 @@ final class IRES_OSSREG_Nimble_Longtext {
    $existing=get_post_meta($id,self::META,true);
    $hash=hash('sha256',$p->post_content);
    $completed=(is_array($existing)&&($existing['schema']??0)===self::SCHEMA&&($existing['hash']??'')===$hash&&($existing['source']??[])===$texts&&is_array($existing['translated']??null))?$existing['translated']:[];
-   $offset=count($completed);$chunk=array_slice($texts,$offset,3);
-   if(!$chunk)continue;
+   // Reuse legacy translations only when they match the next source paragraphs exactly.\n   $reuse=self::reusable($texts,$existing);\n   while(count($completed)<count($texts)&&isset($reuse[$texts[count($completed)]])&&$reuse[$texts[count($completed)]]!==''){\n    $completed[]=$reuse[$texts[count($completed)]];\n   }\n   $offset=count($completed);$chunk=array_slice($texts,$offset,3);
+   if(!$chunk){update_post_meta($id,self::META,['schema'=>self::SCHEMA,'hash'=>$hash,'source'=>$texts,'translated'=>$completed]);continue;}
    $prompt="Translate these Italian website paragraphs to natural English. Preserve HTML markup, links, names, numbers and structure. Return a JSON array with exactly ".count($chunk)." strings in original order.\\n".wp_json_encode($chunk,JSON_UNESCAPED_UNICODE);
    $url='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($settings['model']??'gemini-2.5-flash').':generateContent';
    $response=wp_remote_post($url,['timeout'=>75,'headers'=>['Content-Type'=>'application/json','x-goog-api-key'=>$key],'body'=>wp_json_encode(['contents'=>[['parts'=>[['text'=>$prompt]]]],'generationConfig'=>['responseMimeType'=>'application/json']])]);
