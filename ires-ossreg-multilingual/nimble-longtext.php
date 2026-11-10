@@ -154,9 +154,17 @@ final class IRES_OSSREG_Nimble_Longtext {
   $texts=self::fields($tree);$old=get_post_meta($id,self::META,true);
   if(!is_array($old)||!is_array($old['source']??null)||!is_array($old['translated']??null))wp_send_json_error(['message'=>'Cache non disponibile'],400);
   $lookup=self::reusable([],$old);$completed=[];
-  foreach($texts as $source){
-   if(!isset($lookup[$source])||!is_string($lookup[$source])||trim($lookup[$source])==='')break;
-   $completed[]=$lookup[$source];
+  if(self::sources_equivalent($old['source'],$texts)){
+   foreach($old['translated'] as $i=>$translation){
+    if(!isset($texts[$i])||!is_string($translation)||trim($translation)==='')break;
+    $completed[]=$translation;
+   }
+  }else{
+   foreach($texts as $source){
+    $target=$lookup[$source]??$lookup[self::canonical_source($source)]??null;
+    if(!is_string($target)||trim($target)==='')break;
+    $completed[]=$target;
+   }
   }
   if(!$completed)wp_send_json_success(['repaired'=>false,'reason'=>'Nessun prefisso traducibile con corrispondenza esatta','old_count'=>count($old['translated']),'matched'=>0]);
   $backup_key=self::META.'_backup_0479';
