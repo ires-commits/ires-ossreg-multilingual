@@ -45,9 +45,19 @@ final class IRES_OSSREG_Nimble_Longtext {
   }
   return $lookup;
  }
+ static function canonical_source($text){
+  return str_replace('\\/','/',(string)$text);
+ }
+ static function sources_equivalent($a,$b){
+  if(!is_array($a)||!is_array($b)||count($a)!==count($b))return false;
+  foreach($a as $i=>$source){
+   if(!array_key_exists($i,$b)||self::canonical_source($source)!==self::canonical_source($b[$i]))return false;
+  }
+  return true;
+ }
  static function cached($p){
   $c=get_post_meta($p->ID,self::META,true);
-  return is_array($c)&&($c['schema']??0)===self::SCHEMA&&($c['hash']??'')===hash('sha256',$p->post_content)&&isset($c['source'],$c['translated'])&&is_array($c['source'])&&is_array($c['translated'])&&count($c['source'])===count($c['translated'])?$c:null;
+  return is_array($c)&&($c['schema']??0)===self::SCHEMA&&($c['hash']??'')===hash('sha256',$p->post_content)&&isset($c['source'],$c['translated'])&&is_array($c['source'])&&is_array($c['translated'])&&self::sources_equivalent($c['source'],self::fields(maybe_unserialize($p->post_content)))&&count($c['source'])===count($c['translated'])?$c:null;
  }
  static function normalize_target($text){
   $text=html_entity_decode(wp_strip_all_tags((string)$text),ENT_QUOTES|ENT_HTML5,'UTF-8');
@@ -92,7 +102,7 @@ final class IRES_OSSREG_Nimble_Longtext {
    $texts=self::fields($tree);if(!$texts)continue;
    $hash=hash('sha256',$p->post_content);
    $old=get_post_meta($id,self::META,true);
-   $valid=is_array($old)&&($old['schema']??0)===self::SCHEMA&&($old['hash']??'')===$hash&&($old['source']??[])===$texts&&is_array($old['translated']??null);
+   $valid=is_array($old)&&($old['schema']??0)===self::SCHEMA&&($old['hash']??'')===$hash&&self::sources_equivalent($old['source']??null,$texts)&&is_array($old['translated']??null);
    $completed=$valid?$old['translated']:[];
    $original_count=count($completed);
    // Preserve sequential cache layout: only append a contiguous prefix.
@@ -127,7 +137,7 @@ final class IRES_OSSREG_Nimble_Longtext {
    $texts=self::fields($tree);$n=count($texts);if(!$n)continue;
    $records++;$total+=$n;
    $cache=get_post_meta($id,self::META,true);
-   $valid=is_array($cache)&&($cache['schema']??0)===self::SCHEMA&&($cache['hash']??'')===hash('sha256',$p->post_content)&&($cache['source']??[])===$texts&&is_array($cache['translated']??null);
+   $valid=is_array($cache)&&($cache['schema']??0)===self::SCHEMA&&($cache['hash']??'')===hash('sha256',$p->post_content)&&self::sources_equivalent($cache['source']??null,$texts)&&is_array($cache['translated']??null);
    $done=$valid?min($n,count($cache['translated'])):0;
    $translated+=$done;
    if($done<$n){$pending_records++;if(isset($fail[$id])&&time()-(int)$fail[$id]<1800)$deferred++;}
@@ -155,7 +165,7 @@ final class IRES_OSSREG_Nimble_Longtext {
   update_post_meta($id,self::META,wp_slash($payload));
   wp_cache_delete($id,'post_meta');$stored=get_post_meta($id,self::META,true);
   $ok=$stored===$payload;
-  wp_send_json_success(['repaired'=>$ok,'old_count'=>count($old['translated']),'matched'=>count($completed),'source_matches'=>is_array($stored)&&($stored['source']??null)===$texts,'backup_saved'=>metadata_exists('post',$id,$backup_key)]);
+  wp_send_json_success(['repaired'=>$ok,'old_count'=>count($old['translated']),'matched'=>count($completed),'source_matches'=>is_array($stored)&&self::sources_equivalent($stored['source']??null,$texts),'backup_saved'=>metadata_exists('post',$id,$backup_key)]);
  }
  static function diagnose(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
@@ -194,7 +204,7 @@ final class IRES_OSSREG_Nimble_Longtext {
    // Small batches reduce timeouts; store partial translations per record.
    $existing=get_post_meta($id,self::META,true);
    $hash=hash('sha256',$p->post_content);
-   $completed=(is_array($existing)&&($existing['schema']??0)===self::SCHEMA&&($existing['hash']??'')===$hash&&($existing['source']??[])===$texts&&is_array($existing['translated']??null))?$existing['translated']:[];
+   $completed=(is_array($existing)&&($existing['schema']??0)===self::SCHEMA&&($existing['hash']??'')===$hash&&self::sources_equivalent($existing['source']??null,$texts)&&is_array($existing['translated']??null))?$existing['translated']:[];
    // Never request AI again if the saved cache cannot advance past this record.
    if(count($completed)>count($texts))wp_send_json_error(['message'=>'Cache incoerente per record '.$id.'; nessuna chiamata Gemini eseguita.'],409);
    $offset=count($completed);$chunk=array_slice($texts,$offset,3);
@@ -212,7 +222,7 @@ final class IRES_OSSREG_Nimble_Longtext {
    $written=update_post_meta($id,self::META,wp_slash($payload));
    wp_cache_delete($id,'post_meta');
    $stored=get_post_meta($id,self::META,true);
-   $verified=is_array($stored)&&($stored['schema']??null)===self::SCHEMA&&($stored['hash']??null)===$hash&&($stored['source']??null)===$texts&&($stored['translated']??null)===$completed;
+   $verified=is_array($stored)&&($stored['schema']??null)===self::SCHEMA&&($stored['hash']??null)===$hash&&self::sources_equivalent($stored['source']??null,$texts)&&($stored['translated']??null)===$completed;
    if(!$verified){
     $fail[$id]=time();update_option('ires_ossreg_long_failures',$fail,false);
     wp_send_json_error(['message'=>'Salvataggio non verificato per record '.$id.'. Elaborazione bloccata per evitare chiamate Gemini duplicate.','id'=>$id,'write_result'=>$written,'stored_count'=>is_array($stored['translated']??null)?count($stored['translated']):null,'expected_count'=>count($completed)],409);
