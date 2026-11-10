@@ -150,6 +150,8 @@ final class IRES_OSSREG_Nimble_Longtext {
    $existing=get_post_meta($id,self::META,true);
    $hash=hash('sha256',$p->post_content);
    $completed=(is_array($existing)&&($existing['schema']??0)===self::SCHEMA&&($existing['hash']??'')===$hash&&($existing['source']??[])===$texts&&is_array($existing['translated']??null))?$existing['translated']:[];
+   // Never request AI again if the saved cache cannot advance past this record.
+   if(count($completed)>count($texts))wp_send_json_error(['message'=>'Cache incoerente per record '.$id.'; nessuna chiamata Gemini eseguita.'],409);
    $offset=count($completed);$chunk=array_slice($texts,$offset,3);
    if(!$chunk){update_post_meta($id,self::META,['schema'=>self::SCHEMA,'hash'=>$hash,'source'=>$texts,'translated'=>$completed]);continue;}
    $prompt="Translate these Italian website paragraphs to natural English. Preserve HTML markup, links, names, numbers and structure. Return a JSON array with exactly ".count($chunk)." strings in original order.\\n".wp_json_encode($chunk,JSON_UNESCAPED_UNICODE);
@@ -159,10 +161,19 @@ final class IRES_OSSREG_Nimble_Longtext {
    $body=json_decode(wp_remote_retrieve_body($response),true);
    $translated=json_decode($body['candidates'][0]['content']['parts'][0]['text']??'',true);
    if(!is_array($translated)||count($translated)!==count($chunk)||count(array_filter($translated,'is_string'))!==count($chunk)){$fail[$id]=time();update_option('ires_ossreg_long_failures',$fail,false);wp_send_json_success(['done'=>false,'skipped'=>true,'id'=>$id]);}
+   $before=count($completed);
    $completed=array_merge($completed,array_values($translated));
-   update_post_meta($id,self::META,['schema'=>self::SCHEMA,'hash'=>$hash,'source'=>$texts,'translated'=>$completed]);
+   $payload=['schema'=>self::SCHEMA,'hash'=>$hash,'source'=>$texts,'translated'=>$completed];
+   $written=update_post_meta($id,self::META,$payload);
+   wp_cache_delete($id,'post_meta');
+   $stored=get_post_meta($id,self::META,true);
+   $verified=is_array($stored)&&($stored['schema']??null)===self::SCHEMA&&($stored['hash']??null)===$hash&&($stored['source']??null)===$texts&&($stored['translated']??null)===$completed;
+   if(!$verified){
+    $fail[$id]=time();update_option('ires_ossreg_long_failures',$fail,false);
+    wp_send_json_error(['message'=>'Salvataggio non verificato per record '.$id.'. Elaborazione bloccata per evitare chiamate Gemini duplicate.','id'=>$id,'write_result'=>$written,'stored_count'=>is_array($stored['translated']??null)?count($stored['translated']):null,'expected_count'=>count($completed)],409);
+   }
    unset($fail[$id]);update_option('ires_ossreg_long_failures',$fail,false);
-   wp_send_json_success(['done'=>false,'id'=>$id,'fields'=>count($translated)]);
+   wp_send_json_success(['done'=>false,'id'=>$id,'fields'=>count($translated),'before'=>$before,'after'=>count($completed),'verified'=>true]);
   }
   wp_send_json_success(['done'=>true]);
  }
