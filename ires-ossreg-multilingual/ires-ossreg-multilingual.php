@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.87
+ * Version: 0.4.88
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -229,7 +229,7 @@ final class IRES_OSSREG_Multilingual {
  }
  function english_logo_html($html){
   if(!$this->enabled()||!is_string($html)||$html==='')return $html;
-  $logo=esc_url(plugins_url('assets/ossreg-logo-en.svg',__FILE__));
+  $logo=esc_url(add_query_arg('v','0488',plugins_url('assets/ossreg-logo-en.svg',__FILE__)));
   $alt=esc_attr('Regional Observatory for Higher Education and Student Support');
   return preg_replace_callback('~<img\\b[^>]*>~i',static function($m)use($logo,$alt){
    $tag=$m[0];
