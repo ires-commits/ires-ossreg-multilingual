@@ -49,35 +49,43 @@ final class IRES_OSSREG_Nimble_Longtext {
   $c=get_post_meta($p->ID,self::META,true);
   return is_array($c)&&($c['schema']??0)===self::SCHEMA&&($c['hash']??'')===hash('sha256',$p->post_content)&&isset($c['source'],$c['translated'])&&is_array($c['source'])&&is_array($c['translated'])&&count($c['source'])===count($c['translated'])?$c:null;
  }
+ static function normalize_target($text){
+  $text=html_entity_decode(wp_strip_all_tags((string)$text),ENT_QUOTES|ENT_HTML5,'UTF-8');
+  return mb_strtolower(trim(preg_replace('/\\s+/u',' ',$text)),'UTF-8');
+ }
+ static function candidates($cache){
+  $pairs=[];
+  if(!is_array($cache))return $pairs;
+  if(isset($cache['source'],$cache['translated'])&&is_array($cache['source'])&&is_array($cache['translated'])){
+   $pairs=self::reusable([],$cache);
+  }elseif(isset($cache['fields'],$cache['translations'])&&is_array($cache['fields'])&&is_array($cache['translations'])){
+   foreach($cache['translations'] as $i=>$target){
+    $source=$cache['fields'][$i]['text']??null;
+    if(is_string($source)&&is_string($target))$pairs+=self::reusable([],['source'=>[$source],'translated'=>[$target]]);
+   }
+  }
+  return $pairs;
+ }
  static function recover(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
   check_ajax_referer('ires_ossreg_long_batch');
   $ids=get_posts(['post_type'=>['nimble_post_type','nimble_section','nimble_template'],'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','orderby'=>'ID','order'=>'ASC','suppress_filters'=>true]);
-  $lookup=[];$conflicts=[];
+  $global=[];$local=[];$conflicts=[];
   foreach($ids as $id){
    $p=get_post($id);if(!$p)continue;
-   $old=get_post_meta($id,self::META,true);
+   $long=get_post_meta($id,self::META,true);
    $short=get_post_meta($id,IRES_OSSREG_Nimble_Cache::META,true);
-   foreach([$old,$short] as $cache){
-    if(!is_array($cache))continue;
-    $pairs=[];
-    if(isset($cache['source'],$cache['translated'])&&is_array($cache['source'])&&is_array($cache['translated'])){
-     $pairs=self::reusable([],$cache);
-    }elseif(isset($cache['fields'],$cache['translations'])&&is_array($cache['fields'])&&is_array($cache['translations'])){
-     foreach($cache['translations'] as $i=>$target){
-      $source=$cache['fields'][$i]['text']??null;
-      if(!is_string($source)||!is_string($target))continue;
-      $pairs+=self::reusable([],['source'=>[$source],'translated'=>[$target]]);
-     }
-    }
-    foreach($pairs as $source=>$target){
-     if(!isset($lookup[$source]))$lookup[$source]=$target;
-     elseif($lookup[$source]!==$target)$conflicts[$source]=true;
+   $local[$id]=[];
+   foreach([$long,$short] as $cache){
+    foreach(self::candidates($cache) as $source=>$target){
+     $normalized=self::normalize_target($target);
+     if($normalized===''||$normalized===self::normalize_target($source))continue;
+     if(!isset($local[$id][$source][$normalized]))$local[$id][$source][$normalized]=$target;
+     if(!isset($global[$source][$normalized]))$global[$source][$normalized]=$target;
     }
    }
   }
-  foreach($conflicts as $source=>$_)unset($lookup[$source]);
-  $recovered=0;$changed=0;
+  $recovered=0;$changed=0;$local_count=0;$global_count=0;$available=0;$ambiguous=0;
   foreach($ids as $id){
    $p=get_post($id);if(!$p||!is_serialized($p->post_content))continue;
    $tree=maybe_unserialize($p->post_content);if(!is_array($tree))continue;
@@ -86,19 +94,26 @@ final class IRES_OSSREG_Nimble_Longtext {
    $old=get_post_meta($id,self::META,true);
    $valid=is_array($old)&&($old['schema']??0)===self::SCHEMA&&($old['hash']??'')===$hash&&($old['source']??[])===$texts&&is_array($old['translated']??null);
    $completed=$valid?$old['translated']:[];
-   $local=self::reusable([],$old);
-   $n=count($completed);
-   while($n<count($texts)){
-    $source=$texts[$n];
-    $target=$local[$source]??$lookup[$source]??null;
-    if(!is_string($target)||trim($target)===''||trim($target)===$source)break;
-    $completed[]=$target;$n++;$recovered++;
+   $original_count=count($completed);
+   // Preserve sequential cache layout: only append a contiguous prefix.
+   for($i=$original_count;$i<count($texts);$i++){
+    $source=$texts[$i];
+    $choices=$local[$id][$source]??[];
+    $scope='local';
+    if(count($choices)!==1){$choices=$global[$source]??[];$scope='global';}
+    if(count($choices)===1){
+     $available++;
+     if($i===count($completed)){
+      $completed[]=reset($choices);$recovered++;
+      if($scope==='local')$local_count++;else $global_count++;
+     }
+    }elseif(count($choices)>1){$ambiguous++;$conflicts[$source]=true;}
    }
-   if($n>($valid?count($old['translated']):0)){
+   if(count($completed)>$original_count){
     update_post_meta($id,self::META,['schema'=>self::SCHEMA,'hash'=>$hash,'source'=>$texts,'translated'=>$completed]);$changed++;
    }
   }
-  wp_send_json_success(['recovered'=>$recovered,'records'=>$changed,'conflicts'=>count($conflicts),'message'=>'Recovery completed without AI calls']);
+  wp_send_json_success(['recovered'=>$recovered,'records'=>$changed,'local'=>$local_count,'global'=>$global_count,'available'=>$available,'ambiguous'=>$ambiguous,'conflicts'=>count($conflicts),'message'=>'Recovery completed without AI calls']);
  }
  static function progress(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
