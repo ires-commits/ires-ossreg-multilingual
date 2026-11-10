@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.88
+ * Version: 0.4.89
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -229,7 +229,7 @@ final class IRES_OSSREG_Multilingual {
  }
  function english_logo_html($html){
   if(!$this->enabled()||!is_string($html)||$html==='')return $html;
-  $logo=esc_url(add_query_arg('v','0488',plugins_url('assets/ossreg-logo-en.svg',__FILE__)));
+  $logo=esc_url(add_query_arg('v','0489',plugins_url('assets/ossreg-logo-en.svg',__FILE__)));
   $alt=esc_attr('Regional Observatory for Higher Education and Student Support');
   return preg_replace_callback('~<img\\b[^>]*>~i',static function($m)use($logo,$alt){
    $tag=$m[0];
@@ -240,7 +240,13 @@ final class IRES_OSSREG_Multilingual {
    $tag=preg_replace('~\\s+srcset\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
    $tag=preg_replace('~\\s+sizes\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
    $tag=preg_replace('~\\s+alt\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
-   return preg_replace('~\\s*/?>$~',' alt="'.$alt.'">',$tag);
+   // Preserve the original header box and cap the English artwork at the
+   // observed Italian logo height; never let the SVG's intrinsic dimensions
+   // expand the theme header or cover its bottom border.
+   $tag=preg_replace('~\\s+style\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
+   $tag=preg_replace('~\\s+width\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
+   $tag=preg_replace('~\\s+height\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
+   return preg_replace('~\\s*/?>$~',' alt="'.$alt.'" style="height:76px!important;width:auto!important;max-width:100%!important;object-fit:contain;vertical-align:middle">',$tag);
   },$html);
  }
  function english_custom_logo($html){
