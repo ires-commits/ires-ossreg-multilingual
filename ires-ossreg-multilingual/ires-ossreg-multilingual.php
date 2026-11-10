@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.83
+ * Version: 0.4.84
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -51,6 +51,7 @@ final class IRES_OSSREG_Multilingual {
   add_action('wp_footer',[$this,'floating_switcher'],100);
   add_action('wp_footer',[$this,'dynamic_catalog_translation'],120);
   add_action('wp_footer',[$this,'translation_widget_fallback'],121);
+  add_action('wp_footer',[$this,'frontend_audit'],130);
   add_action('admin_menu',[$this,'admin_menu']);
   add_action('admin_post_ires_ossreg_ml_test',[$this,'test_api']);
   add_action('admin_post_ires_ossreg_ml_github_update',[$this,'github_update']);
@@ -58,6 +59,18 @@ final class IRES_OSSREG_Multilingual {
   add_action('admin_post_ires_ossreg_ml_translate',[$this,'translate_action']);
   add_action('admin_post_ires_ossreg_ml_flush',[$this,'flush']);
   add_action('wp_ajax_ires_ossreg_ml_batch',[$this,'batch_ajax']);
+ }
+ function frontend_audit(){
+  if(!$this->enabled()||!current_user_can('manage_options')||($_GET['ossreg_audit']??'')!=='1')return;
+  $map=IRES_OSSREG_Frontend_Translation::map();
+  $keys=[];
+  foreach($map as $source=>$target){
+   $key=IRES_OSSREG_Frontend_Translation::normalized_key($source);
+   if($key!=='')$keys[$key]=true;
+  }
+  $known=wp_json_encode(array_keys($keys),JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT);
+  echo '<div id="ires-ossreg-audit" style="position:fixed;bottom:12px;right:12px;z-index:2147483646;background:#fff;color:#17202a;border:2px solid #177bb5;border-radius:10px;box-shadow:0 4px 24px #0004;padding:12px;width:min(520px,92vw);max-height:65vh;overflow:auto;font:14px/1.5 sans-serif"><strong>OSSREG — Audit testi frontend (senza AI)</strong><p id="ires-audit-summary">Analisi in corso…</p><button type="button" id="ires-audit-copy">Copia diagnostica</button> <button type="button" id="ires-audit-close">Chiudi</button><pre id="ires-audit-output" style="white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.4 monospace"></pre></div>';
+  echo '<script>(function(){const known=new Set('.$known.');const root=document.getElementById("ires-ossreg-audit");const normalize=s=>s.replace(/\\\\\//g,"/").replace(/\\s+/g," ").trim();const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);const candidates=new Map();let node;while(node=walker.nextNode()){const parent=node.parentElement;if(!parent||parent.closest("#ires-ossreg-audit,script,style,noscript,svg,pre,code,textarea,nav,footer,header,[aria-hidden=true]"))continue;const raw=normalize(node.textContent||"");if(raw.length<24||/^https?:|^www\\.|@/.test(raw)||!/[a-zàèéìòù]/i.test(raw))continue;const key=normalize(raw);if(known.has(key))continue;const count=candidates.get(raw)||0;candidates.set(raw,count+1);}const result={url:location.href,scanned_at:new Date().toISOString(),note:"Candidati non presenti nella mappa delle sorgenti; possono includere testi inglesi, nomi propri o contenuti dinamici. Nessuna traduzione richiesta.",candidates:[...candidates].map(([text,occurrences])=>({text,occurrences}))};document.getElementById("ires-audit-summary").textContent=result.candidates.length+" testi candidati (non necessariamente italiani).";document.getElementById("ires-audit-output").textContent=JSON.stringify(result,null,2);document.getElementById("ires-audit-copy").onclick=()=>{const t=JSON.stringify(result);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).catch(()=>window.prompt("Copia diagnostica",t));else window.prompt("Copia diagnostica",t)};document.getElementById("ires-audit-close").onclick=()=>root.remove();})();</script>';
  }
  function plugin_version(){ $data=get_file_data(__FILE__,['Version'=>'Version'],'plugin'); return (string)($data['Version']??''); }
  function opts(){return wp_parse_args(get_option(self::OPT,[]),['api_key'=>'','model'=>'gemini-2.5-flash','public_enabled'=>false]);}
