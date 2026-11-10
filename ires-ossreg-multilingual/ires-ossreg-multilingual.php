@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.76
+ * Version: 0.4.77
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -467,7 +467,7 @@ async function api(action){var fd=new FormData();fd.append("action",action);fd.a
 async function refresh(prefix){var p=await api("ires_ossreg_long_progress");out.textContent=(prefix||"Avanzamento")+": "+p.percent+"% — "+p.translated+" / "+p.total+" paragrafi tradotti, "+p.remaining+" mancanti; "+p.pending_records+" record incompleti, "+p.deferred+" rinviati."+(requests?" Richieste: "+requests+"; campi restituiti: "+received+"; rinviate: "+skipped+"; ultimo record: "+lastId+".":"");return p;}
 recover.onclick=async function(){recover.disabled=true;run.disabled=true;try{out.textContent="Recupero traduzioni dalle cache in corso...";var result=await api("ires_ossreg_long_recover");await refresh("Recupero completato: "+result.recovered+" paragrafi recuperati ("+result.local+" dallo stesso record, "+result.global+" da altri record); "+result.available+" corrispondenze trovate, "+result.ambiguous+" ambigue, "+result.conflicts+" testi in conflitto");}catch(e){out.textContent="Errore nel recupero: "+e.message}finally{recover.disabled=false;run.disabled=false}};
 stop.onclick=function(){cancel=true;out.textContent="Interruzione richiesta: attendo il salvataggio della richiesta in corso."};
-run.onclick=async function(){cancel=false;requests=0;skipped=0;received=0;lastId="";run.disabled=true;stop.disabled=false;try{await refresh("Avanzamento");while(!cancel){var result=await api("ires_ossreg_long_batch");requests++;if(result.skipped)skipped++;else received+=Number(result.fields||0);if(result.id)lastId=result.id;if(result.done){await refresh("Elaborazione terminata");break;}await refresh("Traduzione in corso");}if(cancel)await refresh("Interrotto; progressi salvati");}catch(e){out.textContent="Errore: "+e.message}finally{run.disabled=false;stop.disabled=true}};
+run.onclick=async function(){cancel=false;requests=0;skipped=0;received=0;lastId="";run.disabled=true;stop.disabled=false;try{var previous=await refresh("Avanzamento");while(!cancel){var result=await api("ires_ossreg_long_batch");requests++;if(result.skipped)skipped++;else received+=Number(result.fields||0);if(result.id)lastId=result.id;if(result.done){await refresh("Elaborazione terminata");break;}var current=await refresh("Traduzione in corso");if(result.fields>0&&current.translated<=previous.translated){out.textContent="BLOCCATO: Gemini ha restituito "+result.fields+" campi per record "+result.id+", ma il conteggio non aumenta ("+current.translated+"/"+current.total+"). Nessuna altra richiesta AI verrà inviata. Verificare cache e diagnostica.";break;}previous=current;}if(cancel)await refresh("Interrotto; progressi salvati");}catch(e){out.textContent="Errore: "+e.message}finally{run.disabled=false;stop.disabled=true}};
 refresh("Stato attuale").catch(function(e){out.textContent="Impossibile leggere lo stato: "+e.message});
 });</script>';
   echo '<h2>Traduzioni schede pubblicazioni</h2><p>Document Library Pro: '.(int)$document_done.' di '.count($document_ids).' schede in cache. Titoli, descrizioni e contenuti web; i PDF non vengono modificati.</p>';
