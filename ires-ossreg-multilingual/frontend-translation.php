@@ -3,6 +3,14 @@ if (!defined('ABSPATH')) exit;
 final class IRES_OSSREG_Frontend_Translation {
  static function map(){
   $map=[
+   // Accommodation page: verified visible Italian strings, no Gemini required.
+   'Alloggi privati'=>'Private accommodation',
+   'Housing sociale'=>'Social housing',
+   '* Utenza accettata dalla struttura: Femminile (F), Maschile (M)'=>'* Residents accepted by the facility: Female (F), Male (M)',
+   'Nella tariffa sono incluse anche le spese di riscaldamento. La struttura dispone di cucine attrezzate e lavanderia. Sala studio con collegamento wi-fi. Sala TV. Giardino.'=>'Heating costs are included in the fee. The residence has equipped kitchens and laundry facilities, a study room with Wi-Fi, a TV room and a garden.',
+   'Una piattaforma web in cui sono pubblicati annunci di case a Torino completi di fotografie, tour virtuali, indirizzo, prezzi e contatti dei proprietari.'=>'A website listing homes in Turin, with photos, virtual tours, addresses, prices and owners’ contact details.',
+   'Un sito che consente di verificare disponibilità e prezzi anche di ostelli, residence e alberghi.'=>'A website where you can check availability and prices for hostels, serviced residences and hotels.',
+   'La tariffa è comprensiva di spese di riscaldamento, acqua calda e varie. Accesso Internet a pagamento. Lavanderia a pagamento. Non esiste un servizio mensa interno, ma è a disposizione una cucina autogestita.'=>'The fee includes heating, hot water and other utilities. Internet access and laundry facilities are available for an additional charge. There is no on-site canteen, but a self-service kitchen is available.',
    'Informare gli studenti sulla borsa di studio: quale effetto sul passaggio scuola-università?'=>'Informing students about scholarships: what effect on the school-to-university transition?',
    'Gli esiti occupazionali dei laureati'=>'Graduate employment outcomes',
    'Il diritto allo studio universitario in Italia: un quadro attuativo disuniforme'=>'The right to higher education in Italy: an uneven implementation landscape',
