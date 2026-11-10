@@ -134,6 +134,23 @@ final class IRES_OSSREG_Nimble_Longtext {
   }
   wp_send_json_success(['total'=>$total,'translated'=>$translated,'remaining'=>max(0,$total-$translated),'percent'=>$total?round($translated*100/$total,1):100,'records'=>$records,'pending_records'=>$pending_records,'deferred'=>$deferred]);
  }
+ static function diagnose(){
+  if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
+  check_ajax_referer('ires_ossreg_long_batch');
+  $id=1322;$p=get_post($id);
+  if(!$p)wp_send_json_error(['message'=>'Record 1322 non trovato'],404);
+  $tree=is_serialized($p->post_content)?maybe_unserialize($p->post_content):null;
+  $texts=is_array($tree)?self::fields($tree):[];
+  $cache=get_post_meta($id,self::META,true);
+  $hash=hash('sha256',$p->post_content);
+  $schema=is_array($cache)?($cache['schema']??null):null;
+  $sources=is_array($cache)?($cache['source']??null):null;
+  $targets=is_array($cache)?($cache['translated']??null):null;
+  $same=is_array($sources)&&$sources===$texts;
+  $first_mismatch=null;
+  if(is_array($sources))foreach($texts as $i=>$text)if(!isset($sources[$i])||$sources[$i]!==$text){$first_mismatch=$i;break;}
+  wp_send_json_success(['id'=>$id,'post_type'=>$p->post_type,'serialized'=>is_serialized($p->post_content),'source_count'=>count($texts),'cache_present'=>is_array($cache),'schema'=>$schema,'schema_valid'=>$schema===self::SCHEMA,'hash_valid'=>is_array($cache)&&($cache['hash']??null)===$hash,'source_matches'=>$same,'first_source_mismatch'=>$first_mismatch,'cached_source_count'=>is_array($sources)?count($sources):null,'translated_count'=>is_array($targets)?count($targets):null,'cache_meta_rows'=>count(get_post_meta($id,self::META,false)),'note'=>'Sola lettura: nessuna chiamata AI e nessuna modifica ai dati']);
+ }
  static function batch(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
   check_ajax_referer('ires_ossreg_long_batch');
@@ -164,7 +181,7 @@ final class IRES_OSSREG_Nimble_Longtext {
    $before=count($completed);
    $completed=array_merge($completed,array_values($translated));
    $payload=['schema'=>self::SCHEMA,'hash'=>$hash,'source'=>$texts,'translated'=>$completed];
-   $written=update_post_meta($id,self::META,$payload);
+   $written=update_post_meta($id,self::META,wp_slash($payload));
    wp_cache_delete($id,'post_meta');
    $stored=get_post_meta($id,self::META,true);
    $verified=is_array($stored)&&($stored['schema']??null)===self::SCHEMA&&($stored['hash']??null)===$hash&&($stored['source']??null)===$texts&&($stored['translated']??null)===$completed;
@@ -183,3 +200,5 @@ add_action('wp_ajax_ires_ossreg_long_batch',['IRES_OSSREG_Nimble_Longtext','batc
 add_action('wp_ajax_ires_ossreg_long_progress',['IRES_OSSREG_Nimble_Longtext','progress']);
 
 add_action('wp_ajax_ires_ossreg_long_recover',['IRES_OSSREG_Nimble_Longtext','recover']);
+
+add_action('wp_ajax_ires_ossreg_long_diagnose',['IRES_OSSREG_Nimble_Longtext','diagnose']);
