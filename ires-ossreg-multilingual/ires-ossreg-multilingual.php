@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.85
+ * Version: 0.4.86
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -28,7 +28,7 @@ final class IRES_OSSREG_Multilingual {
   add_action('template_redirect',[$this,'guard_preview'],0);
   add_action('template_redirect',[$this,'legacy_english_redirect'],-1);
   add_action('wp',[$this,'restore_nimble_page_context'],0);
-  add_action('template_redirect',function(){if($this->enabled()&&!is_feed()&&!wp_doing_ajax()&&!is_robots()&&!is_trackback())ob_start(function($html){return IRES_OSSREG_English_Links::render(IRES_OSSREG_Frontend_Translation::render($html));});},2);
+  add_action('template_redirect',function(){if($this->enabled()&&!is_feed()&&!wp_doing_ajax()&&!is_robots()&&!is_trackback())ob_start(function($html){return $this->english_logo_html(IRES_OSSREG_English_Links::render(IRES_OSSREG_Frontend_Translation::render($html)));});},2);
   add_filter('redirect_canonical',[$this,'canonical'],10,2);
   add_filter('wp_redirect',[$this,'preserve_english_url'],999,2);
   add_filter('request',[$this,'resolve_english_archive'],1);
@@ -219,6 +219,22 @@ final class IRES_OSSREG_Multilingual {
  function path($url){$home=trailingslashit(home_url('/'));if(rtrim((string)wp_parse_url($url,PHP_URL_PATH),'/')===rtrim((string)wp_parse_url($home,PHP_URL_PATH),'/') && strpos($url,$home)===0)return add_query_arg('ossreg_lang','en',$home);if(strpos($url,$home)!==0)return $url;return IRES_OSSREG_English_Links::url($url); }
  function permalink($url,$post){return $this->enabled()?$this->path($url):$url;}
  function page_permalink($url){return $this->enabled()?$this->path($url):$url;}
+ function english_logo_html($html){
+  if(!$this->enabled()||!is_string($html)||$html==='')return $html;
+  $logo=esc_url(plugins_url('assets/ossreg-logo-en.svg',__FILE__));
+  $alt=esc_attr('Regional Observatory for Higher Education and Student Support');
+  return preg_replace_callback('~<img\\b[^>]*>~i',static function($m)use($logo,$alt){
+   $tag=$m[0];
+   if(!preg_match('~\\bsrc\\s*=\\s*([\\x22\\x27])([^\\x22\\x27]+)\\1~i',$tag,$src))return $tag;
+   $path=rawurldecode(html_entity_decode($src[2],ENT_QUOTES|ENT_HTML5,'UTF-8'));
+   if(!preg_match('~(?:logo[^/]*ossreg|ossreg[^/]*logo)~i',basename((string)parse_url($path,PHP_URL_PATH))))return $tag;
+   $tag=preg_replace('~\\bsrc\\s*=\\s*([\\x22\\x27])[^\\x22\\x27]*\\1~i','src="'.$logo.'"',$tag,1);
+   $tag=preg_replace('~\\s+srcset\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
+   $tag=preg_replace('~\\s+sizes\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
+   $tag=preg_replace('~\\s+alt\\s*=\\s*([\\x22\\x27]).*?\\1~i','',$tag);
+   return preg_replace('~\\s*/?>$~',' alt="'.$alt.'">',$tag);
+  },$html);
+ }
  function english_custom_logo($html){
   if(!$this->enabled()||!is_string($html)||$html==='')return $html;
   $target=esc_url(add_query_arg('ossreg_lang','en',home_url('/')));
