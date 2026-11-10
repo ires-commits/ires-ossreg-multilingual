@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.86
+ * Version: 0.4.87
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -28,7 +28,7 @@ final class IRES_OSSREG_Multilingual {
   add_action('template_redirect',[$this,'guard_preview'],0);
   add_action('template_redirect',[$this,'legacy_english_redirect'],-1);
   add_action('wp',[$this,'restore_nimble_page_context'],0);
-  add_action('template_redirect',function(){if($this->enabled()&&!is_feed()&&!wp_doing_ajax()&&!is_robots()&&!is_trackback())ob_start(function($html){return $this->english_logo_html(IRES_OSSREG_English_Links::render(IRES_OSSREG_Frontend_Translation::render($html)));});},2);
+  add_action('template_redirect',function(){if($this->enabled()&&!is_feed()&&!wp_doing_ajax()&&!is_robots()&&!is_trackback())ob_start(function($html){return $this->english_logo_html($this->english_slider_excerpts(IRES_OSSREG_English_Links::render(IRES_OSSREG_Frontend_Translation::render($html))));});},2);
   add_filter('redirect_canonical',[$this,'canonical'],10,2);
   add_filter('wp_redirect',[$this,'preserve_english_url'],999,2);
   add_filter('request',[$this,'resolve_english_archive'],1);
@@ -219,6 +219,14 @@ final class IRES_OSSREG_Multilingual {
  function path($url){$home=trailingslashit(home_url('/'));if(rtrim((string)wp_parse_url($url,PHP_URL_PATH),'/')===rtrim((string)wp_parse_url($home,PHP_URL_PATH),'/') && strpos($url,$home)===0)return add_query_arg('ossreg_lang','en',$home);if(strpos($url,$home)!==0)return $url;return IRES_OSSREG_English_Links::url($url); }
  function permalink($url,$post){return $this->enabled()?$this->path($url):$url;}
  function page_permalink($url){return $this->enabled()?$this->path($url):$url;}
+ function english_slider_excerpts($html){
+  // The post slider appends the WordPress Italian more-tag after excerpt rendering.
+  // Translate only within its excerpt containers, preserving all other HTML.
+  return preg_replace_callback('~(<div\\s+class="psacp-post-desc"[^>]*>)(.*?)(</div>)~is',static function($m){
+   $body=preg_replace('~\\(altro(?:\\.{3}|…|&hellip;|&#8230;)\\)~iu','(more…)',$m[2]);
+   return $m[1].$body.$m[3];
+  },$html);
+ }
  function english_logo_html($html){
   if(!$this->enabled()||!is_string($html)||$html==='')return $html;
   $logo=esc_url(plugins_url('assets/ossreg-logo-en.svg',__FILE__));
