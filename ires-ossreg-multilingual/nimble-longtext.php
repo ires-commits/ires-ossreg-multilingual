@@ -134,6 +134,29 @@ final class IRES_OSSREG_Nimble_Longtext {
   }
   wp_send_json_success(['total'=>$total,'translated'=>$translated,'remaining'=>max(0,$total-$translated),'percent'=>$total?round($translated*100/$total,1):100,'records'=>$records,'pending_records'=>$pending_records,'deferred'=>$deferred]);
  }
+ static function repair(){
+  if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
+  check_ajax_referer('ires_ossreg_long_batch');
+  $id=1322;$p=get_post($id);
+  if(!$p||!is_serialized($p->post_content))wp_send_json_error(['message'=>'Record 1322 non valido'],400);
+  $tree=maybe_unserialize($p->post_content);
+  if(!is_array($tree))wp_send_json_error(['message'=>'Contenuto non valido'],400);
+  $texts=self::fields($tree);$old=get_post_meta($id,self::META,true);
+  if(!is_array($old)||!is_array($old['source']??null)||!is_array($old['translated']??null))wp_send_json_error(['message'=>'Cache non disponibile'],400);
+  $lookup=self::reusable([],$old);$completed=[];
+  foreach($texts as $source){
+   if(!isset($lookup[$source])||!is_string($lookup[$source])||trim($lookup[$source])==='')break;
+   $completed[]=$lookup[$source];
+  }
+  if(!$completed)wp_send_json_success(['repaired'=>false,'reason'=>'Nessun prefisso traducibile con corrispondenza esatta','old_count'=>count($old['translated']),'matched'=>0]);
+  $backup_key=self::META.'_backup_0479';
+  if(!metadata_exists('post',$id,$backup_key))add_post_meta($id,$backup_key,wp_slash($old),true);
+  $payload=['schema'=>self::SCHEMA,'hash'=>hash('sha256',$p->post_content),'source'=>$texts,'translated'=>$completed];
+  update_post_meta($id,self::META,wp_slash($payload));
+  wp_cache_delete($id,'post_meta');$stored=get_post_meta($id,self::META,true);
+  $ok=$stored===$payload;
+  wp_send_json_success(['repaired'=>$ok,'old_count'=>count($old['translated']),'matched'=>count($completed),'source_matches'=>is_array($stored)&&($stored['source']??null)===$texts,'backup_saved'=>metadata_exists('post',$id,$backup_key)]);
+ }
  static function diagnose(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
   check_ajax_referer('ires_ossreg_long_batch');
@@ -202,3 +225,5 @@ add_action('wp_ajax_ires_ossreg_long_progress',['IRES_OSSREG_Nimble_Longtext','p
 add_action('wp_ajax_ires_ossreg_long_recover',['IRES_OSSREG_Nimble_Longtext','recover']);
 
 add_action('wp_ajax_ires_ossreg_long_diagnose',['IRES_OSSREG_Nimble_Longtext','diagnose']);
+
+add_action('wp_ajax_ires_ossreg_long_repair',['IRES_OSSREG_Nimble_Longtext','repair']);
