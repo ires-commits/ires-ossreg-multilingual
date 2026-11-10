@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.78
+ * Version: 0.4.79
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -460,11 +460,12 @@ final class IRES_OSSREG_Multilingual {
   $document_done=0;
   foreach($document_ids as $document_id){$document=get_post($document_id);if($document&&IRES_OSSREG_Dynamic_Cache::cached($document))$document_done++;}
   echo '<h2>Testi lunghi Nimble</h2><p>Traduzione integrativa dei paragrafi lunghi, separata dalle cache già completate. Nessun layout o testo italiano viene modificato.</p>';
-  echo '<p><button type="button" class="button" id="ires-long-recover">Recupera traduzioni esistenti (senza AI)</button> <button type="button" class="button" id="ires-long-diagnose">Diagnostica record 1322 (senza AI)</button> <button type="button" class="button" id="ires-long-run">Traduci paragrafi Nimble</button> <button type="button" class="button" id="ires-long-stop" disabled>Interrompi</button></p><p id="ires-long-status" role="status" aria-live="polite"></p>';
+  echo '<p><button type="button" class="button" id="ires-long-recover">Recupera traduzioni esistenti (senza AI)</button> <button type="button" class="button" id="ires-long-diagnose">Diagnostica record 1322 (senza AI)</button> <button type="button" class="button" id="ires-long-repair">Ripara cache 1322 (senza AI)</button> <button type="button" class="button" id="ires-long-run">Traduci paragrafi Nimble</button> <button type="button" class="button" id="ires-long-stop" disabled>Interrompi</button></p><p id="ires-long-status" role="status" aria-live="polite"></p>';
   echo '<script>document.addEventListener("DOMContentLoaded",function(){
-var diagnose=document.getElementById("ires-long-diagnose"),recover=document.getElementById("ires-long-recover"),run=document.getElementById("ires-long-run"),stop=document.getElementById("ires-long-stop"),out=document.getElementById("ires-long-status"),cancel=false,requests=0,skipped=0,received=0,lastId="";
+var repair=document.getElementById("ires-long-repair"),diagnose=document.getElementById("ires-long-diagnose"),recover=document.getElementById("ires-long-recover"),run=document.getElementById("ires-long-run"),stop=document.getElementById("ires-long-stop"),out=document.getElementById("ires-long-status"),cancel=false,requests=0,skipped=0,received=0,lastId="";
 async function api(action){var fd=new FormData();fd.append("action",action);fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_long_batch')).'");var response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});var result=await response.json();if(!result.success)throw new Error(result.data?.message||"Errore");return result.data;}
 async function refresh(prefix){var p=await api("ires_ossreg_long_progress");out.textContent=(prefix||"Avanzamento")+": "+p.percent+"% — "+p.translated+" / "+p.total+" paragrafi tradotti, "+p.remaining+" mancanti; "+p.pending_records+" record incompleti, "+p.deferred+" rinviati."+(requests?" Richieste: "+requests+"; campi restituiti: "+received+"; rinviate: "+skipped+"; ultimo record: "+lastId+".":"");return p;}
+repair.onclick=async function(){repair.disabled=true;try{var d=await api("ires_ossreg_long_repair");out.textContent="Riparazione 1322: "+JSON.stringify(d);if(d.repaired){var p=await api("ires_ossreg_long_progress");out.textContent+=" | Avanzamento: "+p.percent+"% ("+p.translated+"/"+p.total+")";}}catch(e){out.textContent="Errore riparazione: "+e.message}finally{repair.disabled=false}};
 diagnose.onclick=async function(){diagnose.disabled=true;try{var d=await api("ires_ossreg_long_diagnose");out.textContent="Diagnostica 1322: "+JSON.stringify(d);}catch(e){out.textContent="Diagnostica fallita: "+e.message}finally{diagnose.disabled=false}};
 recover.onclick=async function(){recover.disabled=true;run.disabled=true;try{out.textContent="Recupero traduzioni dalle cache in corso...";var result=await api("ires_ossreg_long_recover");await refresh("Recupero completato: "+result.recovered+" paragrafi recuperati ("+result.local+" dallo stesso record, "+result.global+" da altri record); "+result.available+" corrispondenze trovate, "+result.ambiguous+" ambigue, "+result.conflicts+" testi in conflitto");}catch(e){out.textContent="Errore nel recupero: "+e.message}finally{recover.disabled=false;run.disabled=false}};
 stop.onclick=function(){cancel=true;out.textContent="Interruzione richiesta: attendo il salvataggio della richiesta in corso."};
