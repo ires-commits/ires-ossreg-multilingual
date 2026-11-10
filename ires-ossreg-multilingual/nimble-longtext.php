@@ -172,7 +172,12 @@ final class IRES_OSSREG_Nimble_Longtext {
   $same=is_array($sources)&&$sources===$texts;
   $first_mismatch=null;
   if(is_array($sources))foreach($texts as $i=>$text)if(!isset($sources[$i])||$sources[$i]!==$text){$first_mismatch=$i;break;}
-  wp_send_json_success(['id'=>$id,'post_type'=>$p->post_type,'serialized'=>is_serialized($p->post_content),'source_count'=>count($texts),'cache_present'=>is_array($cache),'schema'=>$schema,'schema_valid'=>$schema===self::SCHEMA,'hash_valid'=>is_array($cache)&&($cache['hash']??null)===$hash,'source_matches'=>$same,'first_source_mismatch'=>$first_mismatch,'cached_source_count'=>is_array($sources)?count($sources):null,'translated_count'=>is_array($targets)?count($targets):null,'cache_meta_rows'=>count(get_post_meta($id,self::META,false)),'note'=>'Sola lettura: nessuna chiamata AI e nessuna modifica ai dati']);
+  $comparison=[];
+  for($i=0;$i<min(7,max(count($texts),is_array($sources)?count($sources):0));$i++){
+   $current=$texts[$i]??null;$previous=is_array($sources)?($sources[$i]??null):null;
+   $comparison[]=['index'=>$i,'current'=>$current,'cached_source'=>$previous,'same'=>$current===$previous,'normalized_same'=>is_string($current)&&is_string($previous)&&self::normalize_target($current)===self::normalize_target($previous),'has_translation'=>is_array($targets)&&isset($targets[$i])&&is_string($targets[$i])&&trim($targets[$i])!==''];
+  }
+  wp_send_json_success(['id'=>$id,'post_type'=>$p->post_type,'serialized'=>is_serialized($p->post_content),'source_count'=>count($texts),'cache_present'=>is_array($cache),'schema'=>$schema,'schema_valid'=>$schema===self::SCHEMA,'hash_valid'=>is_array($cache)&&($cache['hash']??null)===$hash,'source_matches'=>$same,'first_source_mismatch'=>$first_mismatch,'cached_source_count'=>is_array($sources)?count($sources):null,'translated_count'=>is_array($targets)?count($targets):null,'cache_meta_rows'=>count(get_post_meta($id,self::META,false)),'comparison'=>$comparison,'note'=>'Sola lettura: nessuna chiamata AI e nessuna modifica ai dati']);
  }
  static function batch(){
   if(!current_user_can('manage_options'))wp_send_json_error(['message'=>'Access denied'],403);
