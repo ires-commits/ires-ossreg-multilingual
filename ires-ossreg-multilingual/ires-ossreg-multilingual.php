@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.75
+ * Version: 0.4.76
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -465,7 +465,7 @@ final class IRES_OSSREG_Multilingual {
 var recover=document.getElementById("ires-long-recover"),run=document.getElementById("ires-long-run"),stop=document.getElementById("ires-long-stop"),out=document.getElementById("ires-long-status"),cancel=false,requests=0,skipped=0,received=0,lastId="";
 async function api(action){var fd=new FormData();fd.append("action",action);fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_long_batch')).'");var response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});var result=await response.json();if(!result.success)throw new Error(result.data?.message||"Errore");return result.data;}
 async function refresh(prefix){var p=await api("ires_ossreg_long_progress");out.textContent=(prefix||"Avanzamento")+": "+p.percent+"% — "+p.translated+" / "+p.total+" paragrafi tradotti, "+p.remaining+" mancanti; "+p.pending_records+" record incompleti, "+p.deferred+" rinviati."+(requests?" Richieste: "+requests+"; campi restituiti: "+received+"; rinviate: "+skipped+"; ultimo record: "+lastId+".":"");return p;}
-recover.onclick=async function(){recover.disabled=true;run.disabled=true;try{out.textContent="Recupero traduzioni dalle cache in corso...";var result=await api("ires_ossreg_long_recover");await refresh("Recupero completato: "+result.recovered+" paragrafi recuperati in "+result.records+" record; "+result.conflicts+" conflitti esclusi");}catch(e){out.textContent="Errore nel recupero: "+e.message}finally{recover.disabled=false;run.disabled=false}};
+recover.onclick=async function(){recover.disabled=true;run.disabled=true;try{out.textContent="Recupero traduzioni dalle cache in corso...";var result=await api("ires_ossreg_long_recover");await refresh("Recupero completato: "+result.recovered+" paragrafi recuperati ("+result.local+" dallo stesso record, "+result.global+" da altri record); "+result.available+" corrispondenze trovate, "+result.ambiguous+" ambigue, "+result.conflicts+" testi in conflitto");}catch(e){out.textContent="Errore nel recupero: "+e.message}finally{recover.disabled=false;run.disabled=false}};
 stop.onclick=function(){cancel=true;out.textContent="Interruzione richiesta: attendo il salvataggio della richiesta in corso."};
 run.onclick=async function(){cancel=false;requests=0;skipped=0;received=0;lastId="";run.disabled=true;stop.disabled=false;try{await refresh("Avanzamento");while(!cancel){var result=await api("ires_ossreg_long_batch");requests++;if(result.skipped)skipped++;else received+=Number(result.fields||0);if(result.id)lastId=result.id;if(result.done){await refresh("Elaborazione terminata");break;}await refresh("Traduzione in corso");}if(cancel)await refresh("Interrotto; progressi salvati");}catch(e){out.textContent="Errore: "+e.message}finally{run.disabled=false;stop.disabled=true}};
 refresh("Stato attuale").catch(function(e){out.textContent="Impossibile leggere lo stato: "+e.message});
