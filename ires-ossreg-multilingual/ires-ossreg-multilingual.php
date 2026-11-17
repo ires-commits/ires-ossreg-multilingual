@@ -2,7 +2,7 @@
 /**
  * Plugin Name: IRES OSSREG Multilingual
  * Description: English translations for OSSREG with persistent caching and optional Gemini translation.
- * Version: 0.4.91
+ * Version: 0.4.92
  * Requires PHP: 8.0
  * Text Domain: ires-ossreg-multilingual
  */
@@ -15,6 +15,7 @@ require_once __DIR__.'/frontend-translation.php';
 require_once __DIR__.'/english-links.php';
 require_once __DIR__.'/dynamic-cache.php';
 require_once __DIR__.'/nimble-longtext.php';
+require_once __DIR__.'/editorial.php';
 final class IRES_OSSREG_Multilingual {
  const OPT='ires_ossreg_ml_settings';
  const META='_ires_ossreg_en_translation';
@@ -275,7 +276,17 @@ final class IRES_OSSREG_Multilingual {
   if(!$this->enabled())return $html;
   return $html;
  }
- function item($id){$t=get_post_meta($id,self::META,true);$hash=get_post_meta($id,self::SOURCE,true);$p=get_post($id);if(!$p||!is_array($t)||!isset($t['title'],$t['content']))return null;$current=hash('sha256',$p->post_title."\n".$p->post_content);return hash_equals((string)$hash,$current)?$t:null;}
+ function item($id){
+  // Reviewed editorial English always takes priority over the AI cache.
+  $manual=IRES_OSSREG_Editorial_EN::published((int)$id);
+  if($manual)return $manual;
+  $t=get_post_meta($id,self::META,true);
+  $hash=get_post_meta($id,self::SOURCE,true);
+  $p=get_post($id);
+  if(!$p||!is_array($t)||!isset($t['title'],$t['content']))return null;
+  $current=hash('sha256',$p->post_title."\n".$p->post_content);
+  return hash_equals((string)$hash,$current)?$t:null;
+ }
  function translated_posts($posts,$query){
   if(!$this->enabled()||empty($posts))return $posts;
   // Translate archive cards as well as individual pages. Never alter stored Italian posts.
@@ -292,8 +303,10 @@ final class IRES_OSSREG_Multilingual {
    $copy=clone $post;
    $copy->post_title=$translation['title'];
    $copy->post_content=$translation['content'];
-   // When no manually written excerpt exists, WordPress generates one from post_content.
-   // Leave manually written excerpts intact rather than inventing a translation.
+   // The original post excerpt is Italian; never reuse it on an English card.
+   $copy->post_excerpt=!empty($translation['excerpt'])
+    ? sanitize_textarea_field($translation['excerpt'])
+    : wp_trim_words(wp_strip_all_tags(strip_shortcodes($copy->post_content)),36,'…');
    $posts[$i]=$copy;
   }
   return $posts;
@@ -447,7 +460,8 @@ final class IRES_OSSREG_Multilingual {
  function admin(){if(!current_user_can('manage_options'))return;$this->routing_diagnostics();$o=$this->opts();$posts=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>30,'orderby'=>'modified','order'=>'DESC']);echo '<div class="wrap"><h1>IRES OSSREG Multilingual — '.esc_html($this->plugin_version()).'</h1><p>Versione sperimentale: pagine e articoli standard. I menu comuni sono tradotti con un glossario iniziale. I layout Nimble vengono tradotti nelle query WordPress compatibili usando la cache, senza modificare gli originali. Verificare le sezioni dinamiche e i menu in anteprima. Verificare su staging prima di attivare sul sito pubblico.</p>';
   if(isset($_GET['ires_ml_msg']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field(wp_unslash($_GET['ires_ml_msg']))).'</p></div>';
   echo '<p><strong>Modalità:</strong> '.($o['public_enabled']?'PUBBLICA':'TEST (solo amministratori)').'. Nessuna traduzione viene pubblicata finché non si abilita esplicitamente la modalità pubblica.</p>';
-  echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
+  echo '<p><strong>Nuove notizie bilingui:</strong> apri <a href="'.esc_url(admin_url('edit.php')).'">Articoli → Tutti gli articoli</a> e modifica una notizia. Troverai il riquadro <em>Versione inglese — OSSREG</em> con titolo, estratto, contenuto, stato bozza/pubblicato e pulsante facoltativo per preparare una bozza Gemini. La versione redazionale approvata prevale sempre sulle traduzioni automatiche.</p>';
+   echo '<h2>Configurazione</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_save">';wp_nonce_field('ires_ossreg_ml_save');echo '<table class="form-table"><tr><th>Gemini API key</th><td><input type="password" autocomplete="new-password" name="api_key" class="regular-text" placeholder="Lascia vuoto per mantenere la chiave attuale"><p>La chiave viene memorizzata nelle opzioni WordPress. Non inserire chiavi in repository pubblici.</p></td></tr><tr><th>Modello</th><td><input name="model" value="'.esc_attr($o['model']).'" class="regular-text"></td></tr><tr><th>Pubblicazione inglese</th><td><label><input type="checkbox" name="public_enabled" value="1" '.checked(!empty($o['public_enabled']),true,false).'> Abilita versione inglese pubblica (solo dopo i test)</label></td></tr></table>';submit_button('Salva configurazione');echo '</form>';
   echo '<h2>Aggiornamenti GitHub</h2><p>Versione installata: <strong>'.esc_html($this->plugin_version()).'</strong>. Il pulsante controlla direttamente la release ufficiale piu recente e installa solo versioni successive. Eseguire un backup prima di aggiornare.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_github_update">';wp_nonce_field('ires_ossreg_ml_github_update');submit_button('Verifica e aggiorna da GitHub','secondary','submit',false);echo '</form>';
   $nimble_counts=wp_count_posts('nimble_post_type');
@@ -521,7 +535,7 @@ refresh("Stato attuale").catch(function(e){out.textContent="Impossibile leggere 
   echo '<h2>Traduzione batch (sperimentale)</h2><p>Elabora una pagina alla volta, soltanto mentre questa scheda rimane aperta. Le pagine con dati Nimble sono escluse automaticamente per evitare traduzioni parziali. Ogni richiesta Gemini può comportare costi o limiti di quota.</p><p><button type="button" class="button button-secondary" id="ires-ml-batch">Traduci contenuti standard mancanti</button> <button type="button" class="button" id="ires-ml-stop" disabled>Interrompi</button></p><p id="ires-ml-progress" role="status" aria-live="polite"></p>';
   echo '<script>document.addEventListener("DOMContentLoaded",function(){let stop=false;const run=document.getElementById("ires-ml-batch"),cancel=document.getElementById("ires-ml-stop"),out=document.getElementById("ires-ml-progress");cancel.onclick=()=>{stop=true;out.textContent="Interruzione richiesta: attendo la fine della traduzione in corso."};run.onclick=async()=>{stop=false;run.disabled=true;cancel.disabled=false;let n=0;try{while(!stop){const fd=new FormData();fd.append("action","ires_ossreg_ml_batch");fd.append("_ajax_nonce","'.esc_js(wp_create_nonce('ires_ossreg_ml_batch')).'");const response=await fetch("'.esc_js(admin_url('admin-ajax.php')).'",{method:"POST",body:fd,credentials:"same-origin"});const result=await response.json();if(!result.success)throw new Error(result.data?.message||"Errore di traduzione");if(result.data.done){out.textContent="Completato. Traduzioni nuove: "+n+". Aggiorna la pagina per vedere gli stati.";break;}n++;out.textContent="Tradotte "+n+" pagine. Ultima: "+result.data.title;}}catch(e){out.textContent="Interrotto: "+e.message;}finally{run.disabled=false;cancel.disabled=true;}}});</script>';
   echo '<h2>Traduzioni disponibili</h2><table class="widefat striped"><thead><tr><th>Contenuto</th><th>Stato</th><th>Azione</th></tr></thead><tbody>';
-  foreach($posts as $p){$t=$this->item($p->ID);echo '<tr><td>'.esc_html($p->post_title).' (#'.(int)$p->ID.')</td><td>'.($t?'In cache':'Da tradurre / da aggiornare').'</td><td><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_translate"><input type="hidden" name="post_id" value="'.(int)$p->ID.'">';wp_nonce_field('ires_ossreg_ml_translate_'.$p->ID);submit_button($t?'Rigenera':'Traduci','secondary','submit',false);echo '</form></td></tr>';}
+  foreach($posts as $p){$t=$this->item($p->ID);$ed=IRES_OSSREG_Editorial_EN::state($p->ID);$state=$ed&&IRES_OSSREG_Editorial_EN::published($p->ID)?'EN pubblicato (redazionale)':($ed&&($ed['title']!==''||$ed['content']!=='')?'Bozza EN'.($t?' — AI di riserva':''):($t?'Solo traduzione AI':'EN mancante'));echo '<tr><td>'.esc_html($p->post_title).' (#'.(int)$p->ID.')</td><td>'.esc_html($state).'</td><td><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_translate"><input type="hidden" name="post_id" value="'.(int)$p->ID.'">';wp_nonce_field('ires_ossreg_ml_translate_'.$p->ID);submit_button($t?'Rigenera':'Traduci','secondary','submit',false);echo '</form></td></tr>';}
   echo '</tbody></table><p>Per inserire il selettore lingue, usare lo shortcode <code>[ires_ossreg_language_switcher]</code> in una pagina o nell’area shortcode del tema.</p>';
   echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="ires_ossreg_ml_flush">';wp_nonce_field('ires_ossreg_ml_flush');submit_button('Rigenera permalink (una volta dopo installazione)','secondary');echo '</form></div>';
  }
