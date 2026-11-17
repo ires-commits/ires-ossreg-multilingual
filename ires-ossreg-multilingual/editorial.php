@@ -9,6 +9,7 @@ final class IRES_OSSREG_Editorial_EN {
  const META = '_ires_ossreg_editorial_en';
  const NONCE = 'ires_ossreg_editorial_en_save';
  const AJAX = 'ires_ossreg_editorial_en_generate';
+ const IMPORT_AJAX = 'ires_ossreg_editorial_en_import';
 
  static function boot() {
   add_action('add_meta_boxes_post', [__CLASS__, 'metabox']);
@@ -16,6 +17,7 @@ final class IRES_OSSREG_Editorial_EN {
   add_filter('manage_post_posts_columns', [__CLASS__, 'columns']);
   add_action('manage_post_posts_custom_column', [__CLASS__, 'column'], 10, 2);
   add_action('wp_ajax_'.self::AJAX, [__CLASS__, 'generate']);
+  add_action('wp_ajax_'.self::IMPORT_AJAX, [__CLASS__, 'import']);
  }
 
  static function state($id) {
@@ -35,6 +37,27 @@ final class IRES_OSSREG_Editorial_EN {
   $data = self::state($id);
   if (!$data || $data['status'] !== 'published' || trim($data['title']) === '' || trim(wp_strip_all_tags($data['content'])) === '') return null;
   return ['title' => $data['title'], 'excerpt' => $data['excerpt'], 'content' => $data['content'], 'editorial' => true];
+ }
+
+ /**
+  * Retrieve the existing standard AI cache without changing it.
+  * A stale translation may still be useful as a draft, but is never silently
+  * published or treated as the current public translation.
+  */
+ static function cached_translation($id) {
+  $p = get_post((int)$id);
+  if (!$p || $p->post_type !== 'post') return null;
+  $cache = get_post_meta($id, '_ires_ossreg_en_translation', true);
+  if (!is_array($cache) || !is_string($cache['title'] ?? null) || !is_string($cache['content'] ?? null)
+      || trim($cache['title']) === '' || trim(wp_strip_all_tags($cache['content'])) === '') return null;
+  $hash = get_post_meta($id, '_ires_ossreg_en_source_hash', true);
+  $current = hash('sha256', $p->post_title."\n".$p->post_content);
+  return [
+   'title' => $cache['title'],
+   'content' => $cache['content'],
+   'excerpt' => is_string($cache['excerpt'] ?? null) ? $cache['excerpt'] : '',
+   'current' => is_string($hash) && hash_equals($hash, $current),
+  ];
  }
 
  static function metabox() {
@@ -67,15 +90,71 @@ final class IRES_OSSREG_Editorial_EN {
   if (!empty($data['status']) && $data['status'] === 'published' && !self::published($post->ID)) {
    echo '<p style="color:#b45309"><strong>Attenzione:</strong> titolo o contenuto inglese mancanti: la versione redazionale non può essere pubblicata.</p>';
   }
-  $has_copy = (trim($data['title'])!=='' || trim($data['content'])!=='');
-  $status = $data['status'] === 'published' ? 'EN pubblicato' : ($has_copy ? 'Bozza EN' : 'EN redazionale mancante');
+  $has_copy = trim($data['title'])!=='' || trim($data['excerpt'])!=='' || trim($data['content'])!=='';
+  $status = $data['status'] === 'published' && self::published($post->ID) ? 'EN pubblicato' : ($has_copy ? 'Bozza EN' : 'EN redazionale mancante');
   echo '<p><strong>Stato attuale:</strong> '.esc_html($status).'.</p>';
-  echo '<p><button type="button" class="button" id="ires-ossreg-en-generate">Prepara bozza con Gemini</button> <span id="ires-ossreg-en-generation-status" role="status" aria-live="polite"></span></p>';
-  echo '<p class="description">Il pulsante è facoltativo. Riutilizza prima una traduzione AI già in cache; altrimenti invia una singola richiesta a Gemini, che può comportare costi. Non sovrascrive testi redazionali già compilati e lascia sempre la versione EN in bozza.</p>';
+
+  // Show the translation that already exists in the legacy AI cache.
+  $cached = self::cached_translation($post->ID);
+  if ($cached) {
+   $current = $cached['current'];
+   echo '<div style="padding:12px 15px;border-left:4px solid '.($current?'#2271b1':'#dba617').';background:#f6f7f7;margin:14px 0">';
+   echo '<p><strong>'.($current?'Traduzione AI già disponibile':'Traduzione AI disponibile, ma non aggiornata').' — '.($current?'cache valida':'contenuto italiano modificato dopo la traduzione').'</strong></p>';
+   echo '<p>Questa traduzione è già memorizzata nel sito, separatamente dai campi redazionali qui sopra. L’importazione non utilizza Gemini e non la pubblica automaticamente.</p>';
+   if (!$current) echo '<p><strong>Attenzione:</strong> la traduzione potrebbe non riflettere l’ultima versione italiana. Puoi importarla soltanto come bozza da verificare.</p>';
+   echo '<details><summary style="cursor:pointer"><strong>Visualizza traduzione esistente</strong></summary>';
+   echo '<div style="margin-top:9px"><p><strong>Titolo:</strong> '.esc_html($cached['title']).'</p>';
+   if ($cached['excerpt']!=='') echo '<p><strong>Estratto:</strong> '.esc_html($cached['excerpt']).'</p>';
+   echo '<p><strong>Anteprima contenuto:</strong> '.esc_html(wp_trim_words(wp_strip_all_tags($cached['content']),100,'…')).'</p></div></details>';
+   if (!$has_copy) {
+    echo '<p><button type="button" class="button button-secondary" id="ires-ossreg-en-import">Importa traduzione esistente (senza Gemini)</button></p>';
+   } else {
+    echo '<p><em>È già presente una versione redazionale: non verrà sovrascritta.</em></p>';
+   }
+   echo '</div>';
+  } else {
+   echo '<p class="description">Nessuna traduzione completa nella cache standard di questo articolo. Se sul sito compare già del testo inglese, potrebbe provenire da un altro sistema di traduzione o dal contenuto originale.</p>';
+  }
+
+  echo '<p><button type="button" class="button" id="ires-ossreg-en-generate">Prepara bozza con Gemini (solo se necessario)</button> <span id="ires-ossreg-en-generation-status" role="status" aria-live="polite"></span></p>';
+  echo '<p class="description">Per recuperare una traduzione esistente usa il pulsante «Importa» qui sopra. «Prepara bozza con Gemini» riutilizza prima una cache aggiornata; solo in sua assenza può eseguire una nuova richiesta a pagamento, previa conferma. Nessun testo redazionale esistente viene sovrascritto.</p>';
   $ajax = esc_js(admin_url('admin-ajax.php'));
-  $nonce = esc_js(wp_create_nonce(self::AJAX.'_'.$post->ID));
+  $generate_nonce = esc_js(wp_create_nonce(self::AJAX.'_'.$post->ID));
+  $import_nonce = esc_js(wp_create_nonce(self::IMPORT_AJAX.'_'.$post->ID));
   $id = (int)$post->ID;
-  echo '<script>(function(){function init(){var btn=document.getElementById("ires-ossreg-en-generate"),out=document.getElementById("ires-ossreg-en-generation-status");if(!btn||!out)return;btn.addEventListener("click",async function(){var t=document.getElementById("ires_ossreg_en_title"),c=document.getElementById("ires_ossreg_en_content"),e=document.getElementById("ires_ossreg_en_excerpt");if((t&&t.value.trim())||(c&&c.value.trim())||(e&&e.value.trim())){out.textContent="È presente una bozza redazionale: non verrà sovrascritta.";return;}if(!window.confirm("Preparare una bozza inglese dal contenuto italiano SALVATO? Se non esiste una traduzione in cache, sarà effettuata una richiesta Gemini."))return;btn.disabled=true;out.textContent="Preparazione in corso…";try{var fd=new FormData();fd.append("action","'.self::AJAX.'");fd.append("post_id","'.$id.'");fd.append("_ajax_nonce","'.$nonce.'");var response=await fetch("'.$ajax.'",{method:"POST",credentials:"same-origin",body:fd});var result=await response.json();if(!result.success)throw new Error(result.data&&result.data.message||"Errore");if(t)t.value=result.data.title||"";if(e)e.value=result.data.excerpt||"";if(c)c.value=result.data.content||"";var st=document.getElementById("ires_ossreg_en_status");if(st)st.value="draft";out.textContent="Bozza EN salvata ("+(result.data.source==="cache"?"riutilizzata dalla cache":"generata con Gemini")+"). Ricarica l’editor se necessario e pubblicala solo dopo averla verificata."; }catch(err){out.textContent=err.message;}finally{btn.disabled=false;}});}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();})();</script>';
+  $stale_js = $cached && !$cached['current'] ? 'true':'false';
+  echo '<script>(function(){function init(){
+  var generate=document.getElementById("ires-ossreg-en-generate");
+  var importBtn=document.getElementById("ires-ossreg-en-import");
+  var out=document.getElementById("ires-ossreg-en-generation-status");
+  if(!out)return;
+  function fields(){return {title:document.getElementById("ires_ossreg_en_title"),excerpt:document.getElementById("ires_ossreg_en_excerpt"),content:document.getElementById("ires_ossreg_en_content")};}
+  function hasContent(f){return [f.title,f.excerpt,f.content].some(function(el){return el&&el.value.trim()!=="";});}
+  async function run(button, action, nonce, stale){
+   var f=fields();
+   if(hasContent(f)){out.textContent="È presente una versione redazionale: non verrà sovrascritta.";return;}
+   var prompt=stale ? "Questa traduzione AI potrebbe essere superata perché il contenuto italiano è stato modificato. Importarla comunque come bozza da rivedere, senza Gemini?" : action==="'.self::IMPORT_AJAX.'" ? "Importare la traduzione AI esistente come bozza inglese, senza Gemini?" : "Preparare una bozza inglese dal contenuto italiano SALVATO? Se non esiste una traduzione aggiornata in cache, sarà chiamato Gemini.";
+   if(!window.confirm(prompt))return;
+   button.disabled=true;out.textContent="Recupero in corso…";
+   try {
+    var fd=new FormData();fd.append("action",action);fd.append("post_id","'.$id.'");fd.append("_ajax_nonce",nonce);
+    if(stale)fd.append("allow_stale","1");
+    var response=await fetch("'.$ajax.'",{method:"POST",credentials:"same-origin",body:fd});
+    var result=await response.json();
+    if(!result.success)throw new Error(result.data&&result.data.message||"Operazione non riuscita");
+    if(f.title)f.title.value=result.data.title||"";
+    if(f.excerpt)f.excerpt.value=result.data.excerpt||"";
+    if(f.content)f.content.value=result.data.content||"";
+    var status=document.getElementById("ires_ossreg_en_status");if(status)status.value="draft";
+    out.textContent="Importazione completata: versione EN salvata come bozza. Verifica il testo e scegli «EN pubblicato» quando pronto; poi aggiorna l’articolo. Nessuna pubblicazione automatica.";
+    if(importBtn)importBtn.disabled=true;
+   }catch(err){out.textContent=err.message;}finally{button.disabled=false;}
+  }
+  if(importBtn)importBtn.addEventListener("click",function(){run(importBtn,"'.self::IMPORT_AJAX.'","'.$import_nonce.'",'.$stale_js.');});
+  if(generate)generate.addEventListener("click",function(){run(generate,"'.self::AJAX.'","'.$generate_nonce.'",false);});
+ }
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+ })();</script>';
  }
 
  static function save($post_id, $post) {
@@ -121,6 +200,35 @@ final class IRES_OSSREG_Editorial_EN {
     echo '<span style="color:#64748b">EN mancante</span>';
    }
   }
+ }
+
+ /**
+  * Explicit, AI-free import from legacy cache into an unpublished editorial draft.
+  * Refuses to overwrite existing work and requires confirmation for stale data.
+  */
+ static function import() {
+  $id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+  if (!$id || !current_user_can('edit_post',$id)) wp_send_json_error(['message'=>'Permesso negato'],403);
+  check_ajax_referer(self::IMPORT_AJAX.'_'.$id);
+  $post = get_post($id);
+  if (!$post || $post->post_type !== 'post') wp_send_json_error(['message'=>'Articolo non valido'],400);
+  $existing = self::state($id);
+  if ($existing && (trim($existing['title'])!=='' || trim($existing['excerpt'])!=='' || trim($existing['content'])!=='')) {
+   wp_send_json_error(['message'=>'Esiste già una versione inglese redazionale. Non verrà sovrascritta.'],409);
+  }
+  $cached = self::cached_translation($id);
+  if (!$cached) wp_send_json_error(['message'=>'Nessuna traduzione completa nella cache standard di questo articolo. Nessuna chiamata Gemini effettuata.'],404);
+  if (!$cached['current'] && empty($_POST['allow_stale'])) wp_send_json_error(['message'=>'La cache è precedente all’ultima modifica italiana. Conferma esplicitamente l’importazione come bozza da verificare.'],409);
+  $title = sanitize_text_field($cached['title']);
+  $content = wp_kses_post($cached['content']);
+  $excerpt = sanitize_textarea_field($cached['excerpt']!=='' ? $cached['excerpt'] : wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)),35,'…'));
+  if ($title==='' || trim(wp_strip_all_tags($content))==='') wp_send_json_error(['message'=>'Testo inglese incompleto: impossibile importare.'],422);
+  $data = ['title'=>$title,'excerpt'=>$excerpt,'content'=>$content,'status'=>'draft'];
+  update_post_meta($id,self::META,wp_slash($data));
+  wp_cache_delete($id,'post_meta');
+  $saved=self::state($id);
+  if (!$saved || $saved !== $data) wp_send_json_error(['message'=>'Il salvataggio non è stato verificato: controllare la cache prima di riprovare.'],500);
+  wp_send_json_success(['title'=>$title,'excerpt'=>$excerpt,'content'=>$content,'status'=>'draft','source'=>'cache','stale'=>!$cached['current']]);
  }
 
  static function generate() {
