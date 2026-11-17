@@ -165,6 +165,18 @@ final class IRES_OSSREG_Frontend_Translation {
   $standard_ids=get_posts(['post_type'=>['post','page'],'post_status'=>'publish','numberposts'=>-1,'fields'=>'ids','suppress_filters'=>true]);
   foreach($standard_ids as $id){
    $post=get_post($id);if(!$post)continue;
+   // An approved newsroom version must override AI titles and summaries even
+   // when a third-party carousel bypasses the_posts and prints raw source HTML.
+   $manual=IRES_OSSREG_Editorial_EN::published($id);
+   if($manual){
+    $source=trim(wp_strip_all_tags($post->post_title));
+    $target=trim(wp_strip_all_tags($manual['title']));
+    if($source!==''&&$target!==''&&$source!==$target)$map[$source]=$target;
+    $excerpt_source=trim(wp_strip_all_tags($post->post_excerpt));
+    $excerpt_target=trim(wp_strip_all_tags($manual['excerpt']??''));
+    if($excerpt_source!==''&&$excerpt_target!==''&&$excerpt_source!==$excerpt_target)$map[$excerpt_source]=$excerpt_target;
+    continue;
+   }
    $cached=get_post_meta($id,'_ires_ossreg_en_translation',true);
    $hash=get_post_meta($id,'_ires_ossreg_en_source_hash',true);
    if(!is_array($cached)||!isset($cached['title'])||!hash_equals((string)$hash,hash('sha256',$post->post_title."\n".$post->post_content)))continue;
